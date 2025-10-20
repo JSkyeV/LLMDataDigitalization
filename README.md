@@ -1,4 +1,4 @@
-# 🧠 Handwriting Form Extraction Framework
+# Handwriting Form Extraction Framework
 
 Extract **handwritten or user-entered data** from scanned PDF forms using any **LLM model** in a fully modular and customizable framework.
 
@@ -8,7 +8,7 @@ This project supports both:
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 │
@@ -22,7 +22,7 @@ This project supports both:
 
 ---
 
-## ⚙️ 1. Installation
+## 1. Installation
 
 Step 1: Clone the repository
 
@@ -35,7 +35,7 @@ pip install -r requirements.txt
 
 ---
 
-## 🔑 2. Environment Configuration
+## 2. Environment Configuration
 
 All API keys and model details are managed through a `.env` file in the project root.
 
@@ -76,7 +76,7 @@ This lets you test any model without changing the extraction logic.
 
 ---
 
-## 🧠 4. Running the CLI Extractor
+## 4. Running the CLI Extractor
 
 Use the CLI for bulk or automated runs:
 
@@ -89,7 +89,7 @@ python3 ocr_extractor.py \
 
 ---
 
-## 🖥️ 5. Running the Streamlit App
+## 5. Running the Streamlit App
 
 For an interactive UI:
 ```bash
@@ -105,7 +105,7 @@ The app allows you to:
 
 ---
 
-## 🧾 6. Output Format
+## 6. Output Format
 
 All output strictly follows your defined schema (`ocr_schema.json`):
 - Only handwritten or user-entered responses are extracted.
