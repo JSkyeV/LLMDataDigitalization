@@ -21,7 +21,7 @@ class LLMHandler:
 
         self.model_name = os.getenv("LLM_MODEL_NAME")
         api_key_env = os.getenv("LLM_API_KEY_ENV")
-        self.api_key = os.getenv(api_key_env) if api_key_env else None
+        self.api_key = api_key_env       #os.getenv(api_key_env) if api_key_env else None
 
         if not self.model_name or not self.api_key:
             raise RuntimeError(
