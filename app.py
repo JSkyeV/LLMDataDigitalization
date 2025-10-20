@@ -4,7 +4,7 @@ import pathlib
 import tempfile
 import os
 from dotenv import load_dotenv
-from Gemini.gemini_page import extract_page_json, merge_page_results
+from ocr_extractor import extract_page_json, merge_page_results
 from pdf2image import convert_from_path
 import google.generativeai as genai
 from json_repair import repair_json
