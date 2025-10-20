@@ -72,6 +72,8 @@ openai.api_key = self.api_key
 self.model = openai
 ```
 
+Please also remember to change the corresponding APIs for the model that you choose.
+
 This lets you test any model without changing the extraction logic.
 
 ---
