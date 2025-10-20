@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from ocr_extractor import extract_page_json, merge_page_results
 from pdf2image import convert_from_path
 import google.generativeai as genai
+from llm_handler import LLMHandler
 from json_repair import repair_json
 
 st.set_page_config(page_title="Handwritten Form Extractor", page_icon="📝", layout="wide")
@@ -15,6 +16,14 @@ st.write("Upload a scanned PDF form and a JSON schema to extract handwritten con
 
 # Load API key
 load_dotenv()
+
+try:
+    llm = LLMHandler()
+    model = llm.model
+except Exception as e:
+    st.error(f"⚠️ Failed to initialize LLM: {e}")
+    st.stop()
+
 if not os.getenv("LLM_API_KEY_ENV"):
     st.error("⚠️ API KEY missing in .env file.")
     st.stop()
@@ -27,29 +36,6 @@ if uploaded_pdf:
     with open(temp_pdf_path, "wb") as f:
         f.write(uploaded_pdf.read())
     temp_schema_path=pathlib.Path("./ocr_schema.json")
-
-    # -------------------------------------------------------------
-    # 🔧 USER CONFIGURATION SECTION
-    # -------------------------------------------------------------
-    # Import and initialize your model explicitly here.
-    #
-    # Example for Google Gemini:
-    genai.configure(api_key=self.api_key)
-    self.model = genai.GenerativeModel(self.model_name)
-    #
-    # Example for OpenAI:
-    #   import openai
-    #   openai.api_key = self.api_key
-    #   self.model = openai
-    #
-    # Example for Anthropic Claude:
-    #   from anthropic import Anthropic
-    #   self.model = Anthropic(api_key=self.api_key)
-    #
-    # -------------------------------------------------------------
-    #     Developers must uncomment and modify this section
-    #     according to their chosen provider.
-    # -------------------------------------------------------------
 
     with open(temp_schema_path, "r", encoding="utf-8") as f:
         schema = json.load(f)
@@ -71,7 +57,7 @@ if uploaded_pdf:
             with open(tmp.name, "rb") as img_file:
                 img_bytes = img_file.read()
             try:
-                page_json = extract_page_json(model, img_bytes, i, schema_text)
+                page_json = extract_page_json(llm, img_bytes, i, schema_text)
             except Exception as e:
                 st.warning(f"⚠️ LLM error on page {i}: {e}")
                 page_json = {}
