@@ -87,6 +87,14 @@ python3 ocr_extractor.py \
   --pdf input_file.pdf \
   --schema ocr_schema.json \
   --out output_file.json
+
+
+
+For example,
+python3 ocr_extractor.py \
+  --pdf data/forms/TheOpportunityTree_AdmissionsSOP.pdf \
+  --schema ocr_schema.json \
+  --out output_file.json
 ```
 
 ---
