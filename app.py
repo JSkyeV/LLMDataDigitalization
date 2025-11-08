@@ -50,18 +50,24 @@ if uploaded_pdf:
     progress = st.progress(0)
     status = st.empty()
 
+    project_temp_dir = os.path.join(os.getcwd(), "temp")
+    os.makedirs(project_temp_dir, exist_ok=True)
+
+
     for i, page in enumerate(pages, start=1):
         status.write(f"🔍 Processing page {i}/{len(pages)} ...")
-        with tempfile.NamedTemporaryFile(suffix=".png") as tmp:
-            page.save(tmp.name, "PNG")
-            with open(tmp.name, "rb") as img_file:
-                img_bytes = img_file.read()
-            try:
-                page_json = extract_page_json(llm, img_bytes, i, schema_text)
-            except Exception as e:
-                st.warning(f"⚠️ LLM error on page {i}: {e}")
-                page_json = {}
-            all_page_data.append(page_json)
+        fd, tmp_path = tempfile.mkstemp(suffix=".png", dir=project_temp_dir)
+        os.close(fd)  # Close the file descriptor so PIL can write to it
+        page.save(tmp_path, "PNG")
+        with open(tmp_path, "rb") as img_file:
+            img_bytes = img_file.read()
+        try:
+            page_json = extract_page_json(llm, img_bytes, i, schema_text)
+        except Exception as e:
+            st.warning(f"⚠️ LLM error on page {i}: {e}")
+            page_json = {}
+        all_page_data.append(page_json)
+        os.remove(tmp_path)  # Clean up temp file
         progress.progress(i / len(pages))
 
     status.write("🧩 Merging all page results...")

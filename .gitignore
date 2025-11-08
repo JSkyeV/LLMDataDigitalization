@@ -1,5 +1,7 @@
 data
 *.pdf
+*.png
+*.json
 .DS_Store
 __pycache__/
 
