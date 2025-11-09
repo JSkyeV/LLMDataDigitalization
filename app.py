@@ -6,7 +6,6 @@ import os
 from dotenv import load_dotenv
 from ocr_extractor import extract_page_json, merge_page_results
 from pdf2image import convert_from_path
-import google.generativeai as genai
 from llm_handler import LLMHandler
 from json_repair import repair_json
 
@@ -23,10 +22,11 @@ try:
 except Exception as e:
     st.error(f"⚠️ Failed to initialize LLM: {e}")
     st.stop()
-
-if not os.getenv("LLM_API_KEY_ENV"):
-    st.error("⚠️ API KEY missing in .env file.")
-    st.stop()
+    
+# Unnecessary check for API key; not needed for locally-run Ollama models
+# if not os.getenv("LLM_API_KEY_ENV"):
+#     st.error("⚠️ API KEY missing in .env file.")
+#     st.stop()
 
 uploaded_pdf = st.file_uploader("📄 Upload filled PDF form", type=["pdf"])
 
@@ -45,6 +45,11 @@ if uploaded_pdf:
     st.info("📄 Converting PDF pages...")
     pages = convert_from_path(temp_pdf_path, dpi=150)
     st.success(f"✅ Converted {len(pages)} pages.")
+    
+    # Resize images to speed up processing and reduce memory usage
+    max_width, max_height = 1024, 1024
+    for i, img in enumerate(pages):
+        img.thumbnail((max_width, max_height))
 
     all_page_data = []
     progress = st.progress(0)
@@ -52,16 +57,24 @@ if uploaded_pdf:
 
     for i, page in enumerate(pages, start=1):
         status.write(f"🔍 Processing page {i}/{len(pages)} ...")
-        with tempfile.NamedTemporaryFile(suffix=".png") as tmp:
-            page.save(tmp.name, "PNG")
-            with open(tmp.name, "rb") as img_file:
-                img_bytes = img_file.read()
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+            tmp.close()  # Close the file so it can be written to
             try:
-                page_json = extract_page_json(llm, img_bytes, i, schema_text)
-            except Exception as e:
-                st.warning(f"⚠️ LLM error on page {i}: {e}")
-                page_json = {}
-            all_page_data.append(page_json)
+                page.save(tmp.name, "PNG")
+                with open(tmp.name, "rb") as img_file:
+                    img_bytes = img_file.read()
+                try:
+                    page_json = extract_page_json(llm, img_bytes, i, schema_text)
+                except Exception as e:
+                    st.warning(f"⚠️ LLM error on page {i}: {e}")
+                    page_json = {}
+                all_page_data.append(page_json)
+            finally:
+                # Clean up the temporary file
+                try:
+                    os.unlink(tmp.name)
+                except:
+                    pass
         progress.progress(i / len(pages))
 
     status.write("🧩 Merging all page results...")
