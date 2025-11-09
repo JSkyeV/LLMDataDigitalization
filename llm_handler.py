@@ -1,6 +1,5 @@
 # To use DoNUT models
     # run on python 3.8 - 3.10 (3.10.11 used) venv and install the following dependencies:
-        
         # pip install numpy==1.24.4
         # pip install torch==1.13.1 torchvision==0.14.1 torchaudio==0.13.1 --index-url https://download.pytorch.org/whl/cpu
         # pip install pytorch-lightning==1.9.0 torchmetrics==0.11.4
@@ -8,12 +7,12 @@
         # pip install git+https://github.com/clovaai/donut.git 
     # alter to run on GPU (optional):
         # install https://developer.nvidia.com/cuda-toolkit matching your NVIDIA driver
-        # for NNIDIA GPU run change cu number to your CUDA: pip install torch==2.9.0+cu130 torchvision==0.24.0+cu130 torchaudio==2.9.0+cu130 --index-url https://download.pytorch.org/whl/cu130
+        # for NVIDIA GPU run change cu number to your CUDA: pip install torch==2.9.0+cu130 torchvision==0.24.0+cu130 torchaudio==2.9.0+cu130 --index-url https://download.pytorch.org/whl/cu130
     # run to check versions: pip show donut-python torch torchvision torchaudio
     # set max_length: int = 10000, # 1536 -> 10000 in donut model.py line 358
 # To use Pix2Struct models
     # run on python 3.8 - 3.11 venv and install the following dependencies:
-        # from 4.26.1 -> 4.29.0: pip install transformers>=4.29.0
+        # from 4.26.1 -> 4.29.0: pip install transformers==4.29.0
         # pip install accelerate
         # pip install bitsandbytes
 
@@ -25,6 +24,7 @@ import google.generativeai as genai
 
 import io
 from PIL import Image
+import tempfile
 # DoNUT imports
 if (os.getenv("LLM_MODEL_NAME") and os.getenv("LLM_MODEL_NAME").lower() in ["naver-clova-ix/donut-base"]):
     import torch
@@ -42,6 +42,20 @@ if (os.getenv("LLM_MODEL_NAME") and os.getenv("LLM_MODEL_NAME").lower() in ["goo
     except ImportError:
         Pix2StructForConditionalGeneration = None
         Pix2StructProcessor = None
+# TrOCR imports
+if (os.getenv("LLM_MODEL_NAME") and os.getenv("LLM_MODEL_NAME").lower() in ["microsoft/trocr-base-handwritten"]):
+    try:
+        from transformers import TrOCRProcessor, VisionEncoderDecoderModel
+        import torch
+    except ImportError:
+        TrOCRProcessor = None
+        VisionEncoderDecoderModel = None
+# PaddleOCR imports
+if (os.getenv("LLM_MODEL_NAME") and os.getenv("LLM_MODEL_NAME").lower() in ["paddleocr"]):
+    try:
+        from paddleocr import PaddleOCR
+    except ImportError:
+        PaddleOCR = None
 class LLMHandler:
     def __init__(self):
         """
@@ -59,6 +73,8 @@ class LLMHandler:
         self.model_name = os.getenv("LLM_MODEL_NAME")
         api_key_env = os.getenv("LLM_API_KEY_ENV")
         self.api_key = api_key_env       #os.getenv(api_key_env) if api_key_env else None
+        self.DEBUG = os.getenv("DEBUG", "False").lower() == "true"
+        self.DONUT_MAX_LENGTH = int(os.getenv("LLM_DONUT_MAX_LENGTH", "512"))
 
         if not self.model_name or not self.api_key:
             raise RuntimeError(
@@ -77,6 +93,7 @@ class LLMHandler:
         #
         # DoNUT integration
         if self.model_name.lower() in ["naver-clova-ix/donut-base"]:
+            print("Initializing DoNUT model...\n")
             if DonutModel is None:
                 raise ImportError("DonutModel not installed. Please install 'donut'.")
             donut_model_path = os.getenv("DONUT_MODEL_PATH", self.model_name.lower())
@@ -109,6 +126,7 @@ class LLMHandler:
             self.model.eval()
             self.provider = "donut"
         elif self.model_name.lower() in ["google/pix2struct-base"]: # could try pix2struct-docvqa
+            print("Initializing pix2struct model...\n")
             if Pix2StructForConditionalGeneration is None or Pix2StructProcessor is None:
                 raise ImportError("transformers>=4.29.0 required for Pix2Struct.")
             pix2struct_model_path = os.getenv("PIX2STRUCT_MODEL_PATH", self.model_name)
@@ -135,9 +153,26 @@ class LLMHandler:
                 if self.device.type == "cuda" and use_bit == "16":
                     self.model.half()
             self.provider = "pix2struct"
+        elif self.model_name.lower() in ["microsoft/trocr-base-handwritten"]:
+            print("Initializing TrOCR model...\n")
+            if TrOCRProcessor is None or VisionEncoderDecoderModel is None:
+                raise ImportError("transformers required for TrOCR.")
+            trocr_model_path = os.getenv("TROCR_MODEL_PATH", self.model_name)
+            self.processor = TrOCRProcessor.from_pretrained(trocr_model_path)
+            self.model = VisionEncoderDecoderModel.from_pretrained(trocr_model_path)
+            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            self.model.to(self.device)
+            self.model.eval()
+            self.provider = "trocr"
+        elif self.model_name.lower() in ["paddleocr"]:
+            print("Initializing PaddleOCR model...\n")
+            if PaddleOCR is None:
+                raise ImportError("PaddleOCR not installed. Please install 'paddleocr'.")
+            self.model = PaddleOCR(use_angle_cls=True, lang='en')
+            self.provider = "paddleocr"
         else:
             raise RuntimeError(
-                f"Unsupported model '{self.model_name}'. Only 'donut-base' and 'pix2struct-docvqa' are supported."
+                f"Unsupported model '{self.model_name}'. Only 'donut-base', 'pix2struct-base', 'trocr-base-handwritten', and 'paddleocr' are supported."
             )
         # Example for OpenAI:
         #   import openai
@@ -164,6 +199,7 @@ class LLMHandler:
                 with torch.no_grad():
                     # No need to cast image, only model precision matters
                     output = self.model.inference(image, prompt)
+                    if getattr(self, 'DEBUG', None): print("DoNUT raw output:", output)
                 # Output is usually a dict or string
                 if isinstance(output, str):
                     try:
@@ -191,7 +227,9 @@ class LLMHandler:
                     if self.model.dtype == torch.float16 and use_bit == "16" and torch.is_floating_point(inputs[k]):
                         inputs[k] = inputs[k].half()
                 outputs = self.model.generate(**inputs, max_new_tokens=512)
+                if getattr(self, 'DEBUG', None): print("Pix2Struct raw outputs:", outputs)
                 result = self.processor.decode(outputs[0], skip_special_tokens=True)
+                if getattr(self, 'DEBUG', None): print("Pix2Struct DEBUG:", result)
                 # Try to parse JSON from result
                 try:
                     return json.loads(result)
@@ -203,6 +241,40 @@ class LLMHandler:
                     raise
             except Exception as e:
                 raise RuntimeError(f"Pix2Struct generation failed: {e}")
+        elif getattr(self, "provider", None) == "trocr":
+            try:
+                # TrOCR only does OCR, so we extract all text from the image.
+                image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+                pixel_values = self.processor(images=image, return_tensors="pt").pixel_values.to(self.device)
+                with torch.no_grad():
+                    generated_ids = self.model.generate(pixel_values, max_new_tokens=512)
+                    text = self.processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
+                # Return as JSON with a single field, since TrOCR does not do structured extraction.
+                # The schema_text and page_prompt are ignored for TrOCR.
+                return {"extracted_text": text}
+            except Exception as e:
+                raise RuntimeError(f"TrOCR generation failed: {e}")
+        elif getattr(self, "provider", None) == "paddleocr":
+            try:
+                image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+                # Save to temp file for PaddleOCR
+                with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+                    image.save(tmp.name)
+                    results = self.model.ocr(tmp.name, cls=True)
+                    if getattr(self, 'DEBUG', None): print("PaddleOCR DEBUG:", results)
+                os.remove(tmp.name)
+                # Following code fails to extract text data
+                # extracted_texts = []
+                # for line in results:
+                #     # line format: [coords, (text, confidence)]
+                #     if line and len(line) > 1 and isinstance(line[1], tuple):
+                #         text = line[1][0]
+                #         if isinstance(text, str) and text.strip():
+                #             extracted_texts.append(text.strip())
+                # extracted_text = " ".join(extracted_texts)
+                return {"extracted_text": results}
+            except Exception as e:
+                raise RuntimeError(f"PaddleOCR generation failed: {e}")
         else:
             # Gemini logic
             try:

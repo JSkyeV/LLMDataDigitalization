@@ -7,3 +7,13 @@ json-repair>=0.10.0
 PyPDF2>=3.0.1
 pathlib
 argparse
+transformers>=4.29.0
+hf_xet
+numpy==1.24.4
+pytorch-lightning==1.9.0
+torchmetrics==0.11.4
+timm==0.6.13
+accelerate
+bitsandbytes
+paddleocr==2.7.0
+paddlepaddle==2.6.1
