@@ -49,34 +49,39 @@ Return valid JSON according to the provided schema.
                 print(f"Skipping page {page_num} after repeated errors.")
                 return {}
 
+def deep_merge_dicts(a, b):
+    for key, value in b.items():
+        if key in a:
+            if isinstance(a[key], dict) and isinstance(value, dict):
+                deep_merge_dicts(a[key], value)
+            elif isinstance(a[key], list) and isinstance(value, list):
+                a[key] = a[key] + [item for item in value if item not in a[key]]
+            else:
+                if a[key] is None and value is not None:
+                    a[key] = value
+                elif value is not None:
+                    a[key] = value
+        else:
+            a[key] = value
+    return a
+
 def merge_page_results(results):
     merged = {}
     for page_data in results:
         if not isinstance(page_data, dict):
             continue
-        for key, value in page_data.items():
-            if isinstance(value, dict) and isinstance(merged.get(key), dict):
-                merged[key].update(value)
-            else:
-                merged[key] = value
+        deep_merge_dicts(merged, page_data)
     return merged
 
 def main():
     parser = argparse.ArgumentParser(description="Page-wise LLM OCR with schema output")
     parser.add_argument("--pdf", required=True, help="Path to input filled PDF")
-    parser.add_argument("--schema", required=True, help="Path to JSON schema file")
+    parser.add_argument("--schema_dir", required=True, help="Directory containing page-wise schema files (schema1.json, schema2.json, ...)")
     parser.add_argument("--out", required=True, help="Path to output JSON file")
     args = parser.parse_args()
 
     load_dotenv()
     llm = LLMHandler()
-
-    with open(args.schema, "r", encoding="utf-8") as f:
-        schema = json.load(f)
-
-    schema_text = SYSTEM_INSTRUCTIONS.format(
-        schema=json.dumps(schema, indent=2, ensure_ascii=False)
-    )
 
     print(f"Converting {args.pdf} to images...")
     pages = convert_from_path(args.pdf, dpi=150)
@@ -84,6 +89,19 @@ def main():
 
     all_page_data = []
     for i, page in enumerate(pages, start=1):
+        schema_path = Path(args.schema_dir) / f"schema{i}.json"
+        if not schema_path.exists():
+            print(f"Schema file {schema_path} not found for page {i}. Skipping.")
+            all_page_data.append({})
+            continue
+
+        with open(schema_path, "r", encoding="utf-8") as f:
+            schema = json.load(f)
+
+        schema_text = SYSTEM_INSTRUCTIONS.format(
+            schema=json.dumps(schema, indent=2, ensure_ascii=False)
+        )
+
         with tempfile.NamedTemporaryFile(suffix=".png") as tmp:
             page.save(tmp.name, "PNG")
             with open(tmp.name, "rb") as img_file:

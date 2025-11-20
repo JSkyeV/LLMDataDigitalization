@@ -8,3 +8,4 @@ PyPDF2>=3.0.1
 pathlib
 argparse
 ollama>=0.3.0
+termcolor

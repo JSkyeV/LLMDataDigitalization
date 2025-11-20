@@ -1,7 +1,10 @@
 data
 *.pdf
+*.png
 .DS_Store
 __pycache__/
+output/
+temp/
 
 # Environments
 .env
