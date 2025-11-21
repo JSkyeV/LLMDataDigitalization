@@ -3,7 +3,8 @@
 Extract **handwritten or user-entered data** from scanned PDF forms using any **LLM model** in a fully modular and customizable framework.
 
 This project supports both:
-- A **command-line tool (`ocr_extractor.py`)** for automated extraction  
+
+- A **command-line tool (`ocr_extractor.py`)** for automated extraction
 - An interactive **Streamlit app (`app.py`)** for visual exploration
 
 ---
@@ -13,9 +14,9 @@ This project supports both:
 ```
 │
 ├── ocr_extractor.py       # CLI tool for page-wise PDF extraction
-├── app_updated.py         # Streamlit dashboard for interactive form extraction
+├── app.py                 # Streamlit dashboard for interactive form extraction
 ├── llm_handler.py         # Generic LLM configuration handler
-├── ocr_schema.json        # JSON schema defining structure of the empty form
+├── schema/                # Directory containing all JSON schemas (schema1.json, schema2.json, ...)
 ├── requirements.txt       # All dependencies
 └── .env                   # Model and API configuration file
 ```
@@ -29,6 +30,7 @@ Step 1: Clone the repository
 Step 2: Create and activate a virtual environment
 
 Step 3: Install dependencies
+
 ```bash
 pip install -r requirements.txt
 ```
@@ -40,6 +42,7 @@ pip install -r requirements.txt
 All API keys and model details are managed through a `.env` file in the project root.
 
 Example `.env`:
+
 ```bash
 # .env
 LLM_MODEL_NAME=gemini-2.0-flash
@@ -56,6 +59,7 @@ This framework is **provider-agnostic** — no hardcoded defaults.
 You must manually import and initialize your chosen LLM in the **USER CONFIGURATION SECTION** inside `llm_handler.py`.
 
 ### Example: Google Gemini
+
 ```python
 # USER CONFIGURATION SECTION
 import google.generativeai as genai
@@ -65,6 +69,7 @@ self.model = genai.GenerativeModel(self.model_name)
 ```
 
 ### Example: OpenAI GPT-4o
+
 ```python
 # USER CONFIGURATION SECTION
 import openai
@@ -85,15 +90,16 @@ Use the CLI for bulk or automated runs:
 ```bash
 python3 ocr_extractor.py \
   --pdf input_file.pdf \
-  --schema ocr_schema.json \
+  --schema_dir schema/ \
   --out output_file.json
-
-
+```
 
 For example,
+
+```bash
 python3 ocr_extractor.py \
   --pdf data/forms/TheOpportunityTree_AdmissionsSOP.pdf \
-  --schema ocr_schema.json \
+  --schema_dir schema/ \
   --out output_file.json
 ```
 
@@ -102,6 +108,7 @@ python3 ocr_extractor.py \
 ## 5. Running the Streamlit App
 
 For an interactive UI:
+
 ```bash
 streamlit run app.py
 ```
@@ -109,15 +116,17 @@ streamlit run app.py
 Then open the local link (usually http://localhost:8501) in your browser.
 
 The app allows you to:
+
 - Upload scanned forms (PDFs)
-- Automatically apply the internal schema (`ocr_schema.json`)
-- Preview and download structured JSON results
+- Automatically apply the internal schemas from the `schema/` directory
+- Preview and download structured JSON and Excel results
 
 ---
 
 ## 6. Output Format
 
 All output strictly follows your defined schema (`ocr_schema.json`):
+
 - Only handwritten or user-entered responses are extracted.
 - Blank or illegible fields → `null`
 - Checkboxes → extracted as selected options
@@ -126,10 +135,10 @@ All output strictly follows your defined schema (`ocr_schema.json`):
 
 ---
 
-
 ## 7. Switching Between Models
 
 To change LLMs:
+
 1. Edit `.env` → update `LLM_MODEL_NAME`, `LLM_API_KEY_ENV`, and key.
 2. Update import/config section in `llm_handler.py`.
 3. Run the same `ocr_extractor.py` or `streamlit run app.py`.

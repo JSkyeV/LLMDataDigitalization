@@ -62,7 +62,10 @@ class LLMHandler:
         # -------------------------------------------------------------
         
         # Utilizing Ollama for a call to a locally-running LLM
-        self.model = ollama.Client(host=self.ollama_host) if self.ollama_host else ollama.Client()
+        try:
+            self.model = ollama.Client(host=self.ollama_host) if self.ollama_host else ollama.Client()
+        except Exception as e:
+            raise RuntimeError(f"LLM initialization failed: {e}")
         if self.DEBUG:
             cprint(f"[DEBUG] Ollama client initialized: {self.model}", "cyan")
 

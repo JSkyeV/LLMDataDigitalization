@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from pdf2image import convert_from_path
 import tempfile
 from llm_handler import LLMHandler
+from termcolor import cprint
 
 SYSTEM_INSTRUCTIONS = """
 You are an expert OCR and form-understanding assistant.
@@ -37,7 +38,7 @@ Return ONLY the schema filename (e.g., "schema3.json") that best fits, or "none"
 """
 
 def extract_page_json(llm, page_image, page_num, schema_text):
-    print(f"Processing page {page_num} ...")
+    cprint(f"Processing page {page_num} ...", "cyan")
 
     page_prompt = f"""
 This is page {page_num} of a multi-page form.
@@ -49,14 +50,14 @@ Return valid JSON according to the provided schema.
         try:
             return llm.generate_json(schema_text, page_prompt, page_image)
         except Exception as e:
-            print(f"Error on page {page_num}: {e}")
+            cprint(f"Error on page {page_num}: {e}", "red")
             if attempt < 2:
                 delay = 2 ** attempt
-                print(f"Retrying in {delay}s...")
+                cprint(f"Retrying in {delay}s...", "yellow")
                 time.sleep(delay)
             else:
-                print(f"Skipping page {page_num} after repeated errors.")
-                return {}
+                cprint(f"Skipping page {page_num} after repeated errors.", "red")
+                raise
 
 def deep_merge_dicts(a, b):
     for key, value in b.items():
@@ -116,75 +117,79 @@ def match_page_to_schema(llm, page_image, schema_descriptions):
             schema_name = response.get('response', '').strip().replace('"', '')
             return schema_name
         except Exception as e:
-            print(f"Schema match error: {e}")
+            cprint(f"Schema match error: {e}", "red")
             if attempt < 2:
                 time.sleep(2 ** attempt)
             else:
-                return "none"
+                raise
 
 def main():
-    parser = argparse.ArgumentParser(description="Page-wise LLM OCR with schema output")
-    parser.add_argument("--pdf", required=True, help="Path to input filled PDF")
-    parser.add_argument("--schema_dir", required=True, help="Directory containing page-wise schema files (schema1.json, schema2.json, ...)")
-    parser.add_argument("--out", required=True, help="Path to output JSON file")
-    args = parser.parse_args()
+    try:
+        parser = argparse.ArgumentParser(description="Page-wise LLM OCR with schema output")
+        parser.add_argument("--pdf", required=True, help="Path to input filled PDF")
+        parser.add_argument("--schema_dir", required=True, help="Directory containing page-wise schema files (schema1.json, schema2.json, ...)")
+        parser.add_argument("--out", required=True, help="Path to output JSON file")
+        args = parser.parse_args()
 
-    load_dotenv()
-    llm = LLMHandler()
+        load_dotenv()
+        llm = LLMHandler()
 
-    print(f"Converting {args.pdf} to images...")
-    pages = convert_from_path(args.pdf, dpi=150)
-    print(f"{len(pages)} pages converted.\n")
+        cprint(f"Converting {args.pdf} to images...", "cyan")
+        pages = convert_from_path(args.pdf, dpi=150)
+        cprint(f"{len(pages)} pages converted.\n", "cyan")
 
-    schema_files, schema_descriptions = get_schema_descriptions(args.schema_dir)
+        schema_files, schema_descriptions = get_schema_descriptions(args.schema_dir)
 
-    matched_pages = []
-    matched_schemas = []
-    temp_files = [] 
-    for i, page in enumerate(pages, start=1):
-        print(f"Matching page {i} to schema...")
-        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
-            page.save(tmp.name, "PNG")
-            temp_files.append(tmp.name)
-            with open(tmp.name, "rb") as img_file:
-                img_bytes = img_file.read()
-            schema_name = match_page_to_schema(llm, img_bytes, schema_descriptions)
-            if schema_name == "none":
-                print(f"Page {i} does not match any schema. Skipping.")
-                continue
-            schema_path = Path(args.schema_dir) / schema_name
-            if not schema_path.exists():
-                print(f"Matched schema {schema_name} not found. Skipping page {i}.")
-                continue
-            matched_pages.append(img_bytes)
-            matched_schemas.append(schema_path)
+        matched_pages = []
+        matched_schemas = []
+        temp_files = [] 
+        for i, page in enumerate(pages, start=1):
+            cprint(f"Matching page {i} to schema...", "cyan")
+            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+                page.save(tmp.name, "PNG")
+                temp_files.append(tmp.name)
+                with open(tmp.name, "rb") as img_file:
+                    img_bytes = img_file.read()
+                schema_name = match_page_to_schema(llm, img_bytes, schema_descriptions)
+                if schema_name == "none":
+                    cprint(f"Page {i} does not match any schema. Skipping.", "yellow")
+                    continue
+                schema_path = Path(args.schema_dir) / schema_name
+                if not schema_path.exists():
+                    cprint(f"Matched schema {schema_name} not found. Skipping page {i}.", "yellow")
+                    continue
+                matched_pages.append(img_bytes)
+                matched_schemas.append(schema_path)
 
-    print(f"{len(matched_pages)} pages matched to schemas.\n")
+        cprint(f"{len(matched_pages)} pages matched to schemas.\n", "cyan")
 
-    all_page_data = []
-    for i, (img_bytes, schema_path) in enumerate(zip(matched_pages, matched_schemas), start=1):
-        with open(schema_path, "r", encoding="utf-8") as f:
-            schema = json.load(f)
-        schema_text = SYSTEM_INSTRUCTIONS.format(
-            schema=json.dumps(schema, indent=2, ensure_ascii=False)
-        )
-        page_json = extract_page_json(llm, img_bytes, i, schema_text)
-        all_page_data.append(page_json)
+        all_page_data = []
+        for i, (img_bytes, schema_path) in enumerate(zip(matched_pages, matched_schemas), start=1):
+            with open(schema_path, "r", encoding="utf-8") as f:
+                schema = json.load(f)
+            schema_text = SYSTEM_INSTRUCTIONS.format(
+                schema=json.dumps(schema, indent=2, ensure_ascii=False)
+            )
+            page_json = extract_page_json(llm, img_bytes, i, schema_text)
+            all_page_data.append(page_json)
 
-    final_json = merge_page_results(all_page_data)
+        final_json = merge_page_results(all_page_data)
 
-    out_path = Path(args.out)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(out_path, "w", encoding="utf-8") as f:
-        json.dump(final_json, f, indent=2, ensure_ascii=False)
+        out_path = Path(args.out)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(out_path, "w", encoding="utf-8") as f:
+            json.dump(final_json, f, indent=2, ensure_ascii=False)
 
-    for temp_path in temp_files:
-        try:
-            Path(temp_path).unlink()
-        except Exception as e:
-            print(f"Warning: Could not delete temp file {temp_path}: {e}")
+        for temp_path in temp_files:
+            try:
+                Path(temp_path).unlink()
+            except Exception as e:
+                cprint(f"Warning: Could not delete temp file {temp_path}: {e}", "yellow")
 
-    print(f"\nExtraction complete! Combined JSON saved to {out_path}")
+        cprint(f"\nExtraction complete! Combined JSON saved to {out_path}", "green")
+    except Exception as e:
+        cprint(f"\nFatal error: {e}", "red")
+        raise
 
 if __name__ == "__main__":
     main()

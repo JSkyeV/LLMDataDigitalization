@@ -9,3 +9,4 @@ pathlib
 argparse
 ollama>=0.3.0
 termcolor
+xlsxwriter
