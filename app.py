@@ -29,6 +29,8 @@ if 'pdf_pages' not in st.session_state:
     st.session_state.pdf_pages = None
 if 'page_selection_confirmed' not in st.session_state:
     st.session_state.page_selection_confirmed = False
+if 'extraction_complete' not in st.session_state:
+    st.session_state.extraction_complete = False
 
 st.title("📄 TOT Form Data Extractor")
 st.markdown("Extract structured data from PDF forms using Ollama Vision Models")
@@ -45,6 +47,7 @@ with st.sidebar:
             st.session_state.pdf_uploaded = False
             st.session_state.pdf_pages = None
             st.session_state.page_selection_confirmed = False
+            st.session_state.extraction_complete = False
             st.session_state.extraction_results = None
             st.session_state.edited_data = None
             st.rerun()
@@ -149,8 +152,8 @@ with tab1:
                 st.session_state.page_selection_confirmed = False
                 st.rerun()
     
-    # Run extraction after page selection is confirmed
-    if st.session_state.page_selection_confirmed and st.session_state.pdf_pages:
+    # Run extraction after page selection is confirmed (only if not already done)
+    if st.session_state.page_selection_confirmed and st.session_state.pdf_pages and not st.session_state.extraction_complete:
         pdf_path = Path("temp_upload.pdf")
         
         # Get selected pages
@@ -203,6 +206,7 @@ with tab1:
                     st.session_state.extraction_results = results
                     st.session_state.edited_data = None  # Reset edited data
                     st.session_state.data_appended = False  # Reset append flag for new document
+                    st.session_state.extraction_complete = True  # Mark extraction as complete
                     
                     # Display model used and schema mode
                     schema_mode = results['metadata'].get('schema_mode', 'single')
@@ -304,11 +308,14 @@ with tab2:
             
             # Apply mapping transformation (only once)
             if st.session_state.edited_data is None:
-                mapped_data = apply_mapping(merged_data)
-                st.session_state.edited_data = mapped_data.copy()
+                with st.spinner("🔄 Mapping extracted data to CSV format..."):
+                    mapped_data = apply_mapping(merged_data)
+                    st.session_state.edited_data = mapped_data.copy()
             
-            # Get property names in order
-            property_names = get_property_names_in_order()
+            # Cache property names in session state
+            if 'property_names' not in st.session_state:
+                st.session_state.property_names = get_property_names_in_order()
+            property_names = st.session_state.property_names
             
             # Show how many fields were pre-populated
             prepopulated_count = sum(1 for v in st.session_state.edited_data.values() if v and str(v).strip())
@@ -324,14 +331,15 @@ with tab2:
             
             # Show mapping preview
             with st.expander("🔍 View Mapping Preview (First 10 Fields)"):
-                preview = preview_mapping(merged_data, limit=10)
-                st.json(preview)
+                if 'mapping_preview' not in st.session_state:
+                    st.session_state.mapping_preview = preview_mapping(merged_data, limit=10)
+                st.json(st.session_state.mapping_preview)
             
             # Create editable form with search
             st.divider()
             
             # Search/filter
-            search_term = st.text_input("🔍 Search fields", placeholder="Type to filter fields...")
+            search_term = st.text_input("🔍 Search fields", placeholder="Type to filter fields...", key="field_search")
             
             # Filter property names based on search
             if search_term:
@@ -341,7 +349,7 @@ with tab2:
             
             st.info(f"Showing {len(filtered_properties)} of {len(property_names)} fields")
             
-            # Create editable form
+            # Create editable form (this is the expensive part)
             with st.form("edit_form"):
                 # Track edited fields
                 edited_fields = {}
