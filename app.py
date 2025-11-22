@@ -12,6 +12,43 @@ import pandas as pd
 from pandas import ExcelWriter
 import time
 
+def echo_llm_test(llm):
+    st.header("🔊 Echo LLM Test (Debug)")
+    st.write("Upload an image and enter a prompt to send directly to the LLM. Useful for debugging model/image input.")
+
+    with st.expander("LLM Options (Advanced)", expanded=False):
+        temperature = st.number_input("Temperature", min_value=0.0, max_value=2.0, value=0.0, step=0.01, key="echo_temperature")
+        top_p = st.number_input("Top-p", min_value=0.0, max_value=1.0, value=1.0, step=0.01, key="echo_top_p")
+        num_ctx = st.number_input("Context Length (num_ctx)", min_value=512, max_value=32768, value=16000, step=1, key="echo_num_ctx")
+        num_predict = st.number_input("Max Tokens (num_predict)", min_value=1, max_value=8192, value=6000, step=1, key="echo_num_predict")
+
+    uploaded_img = st.file_uploader("Upload an image (PNG/JPG)", type=["png", "jpg", "jpeg"], key="echo_img")
+    prompt_text = st.text_area("Prompt to send to LLM", value="Describe the image and then repeat this sentence: Hello world.", key="echo_prompt")
+    if uploaded_img and st.button("Run Echo Test", key="run_echo"):
+        img_bytes = uploaded_img.read()
+        st.info("Sending image and prompt to LLM...")
+        try:
+            import base64
+            image_b64 = base64.b64encode(img_bytes).decode('utf-8')
+            response = llm.model.generate(
+                model=llm.model_name,
+                prompt=prompt_text,
+                images=[image_b64],
+                stream=False,
+                options={
+                    "temperature": temperature,
+                    "top_p": top_p,
+                    "num_ctx": int(num_ctx),
+                    "num_predict": int(num_predict),
+                }
+            )
+            st.subheader("LLM Raw Response")
+            st.code(response, language="json")
+            st.subheader("LLM Response")
+            st.code(response.get('response', ''), language="json")
+        except Exception as e:
+            st.error(f"Echo test error: {e}")
+
 st.set_page_config(page_title="Handwritten Form Extractor", page_icon="📝", layout="wide")
 st.title("📝 Handwritten Form Extractor")
 st.write("Upload a scanned PDF form and a JSON schema to extract handwritten content into structured JSON.")
@@ -20,7 +57,8 @@ MODEL_OPTIONS = [
     "llama3.2-vision:11b",
     "minicpm-v:8b",
     "qwen3-vl:2b",
-    "qwen2.5vl:3b"
+    "qwen2.5vl:3b",
+    "qwen3-vl:4b-instruct-q8_0"
 ]
 
 if "uploaded" not in st.session_state:
@@ -49,6 +87,9 @@ try:
 except Exception as e:
     st.error(f"⚠️ {e}")
     st.stop()
+
+with st.expander("🔊 Echo LLM Test (Debug)", expanded=False):
+    echo_llm_test(llm)
 
 if not st.session_state.uploaded:
     uploaded_pdf = st.file_uploader("📄 Upload filled PDF form", type=["pdf"])
@@ -93,9 +134,9 @@ else:
         st.subheader("🔍 Preview PDF Pages")
         preview_container = st.container()
         include_pages = []
-        cols = preview_container.columns(4)
+        cols = preview_container.columns(5)
         for i, page in enumerate(pages, start=1):
-            with cols[(i - 1) % 4]:
+            with cols[(i - 1) % 5]:
                 st.image(page, caption=f"Page {i}")
                 include = st.checkbox(f"Include Page {i}", value=True, key=f"include_{i}")
                 include_pages.append(include)
@@ -127,6 +168,7 @@ else:
             matched_schema_names = []
             matched_schema_paths = []
             matched_img_bytes = []
+            prev_schema_num = None
             for i, page in enumerate(selected_pages, start=1):
                 start_time = time.time()
                 with st.spinner(f"⚙️ Matching selected page {i}/{len(selected_pages)} to schema ..."):
@@ -140,7 +182,9 @@ else:
                             schema_name = schema_matches[cache_key]
                         else:
                             try:
-                                schema_name = match_page_to_schema(llm, img_bytes, schema_files)
+                                schema_name = match_page_to_schema(
+                                    llm, img_bytes, schema_files, page_index=i, prev_schema_num=prev_schema_num
+                                )
                                 schema_matches[cache_key] = schema_name
                                 st.session_state.schema_matches = schema_matches
                             except Exception as e:
@@ -151,6 +195,7 @@ else:
                             matched_schema_names.append(None)
                             matched_schema_paths.append(None)
                             matched_img_bytes.append(None)
+                            prev_schema_num = None
                         else:
                             schema_path = pathlib.Path(schema_dir) / schema_name
                             if not schema_path.exists():
@@ -158,15 +203,21 @@ else:
                                 matched_schema_names.append(None)
                                 matched_schema_paths.append(None)
                                 matched_img_bytes.append(None)
+                                prev_schema_num = None
                             else:
                                 matched_schema_names.append(schema_name)
                                 matched_schema_paths.append(schema_path)
                                 matched_img_bytes.append(img_bytes)
+                                try:
+                                    prev_schema_num = int(''.join(filter(str.isdigit, schema_name)))
+                                except Exception:
+                                    prev_schema_num = None
                     except Exception as e:
                         st.error(f"⚠️ Error processing page {i}: {e}")
                         matched_schema_names.append(None)
                         matched_schema_paths.append(None)
                         matched_img_bytes.append(None)
+                        prev_schema_num = None
                     finally:
                         try:
                             os.unlink(tmp.name)

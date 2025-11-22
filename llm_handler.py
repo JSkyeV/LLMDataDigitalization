@@ -67,9 +67,6 @@ class LLMHandler:
             )
 
             text_output = response.get('response', '')
-            if self.DEBUG:
-                cprint(f"[DEBUG] text_output (first 500 chars): {text_output[:500]}", "cyan")
-
             try:
                 result = json.loads(text_output)
                 if self.DEBUG:
@@ -81,13 +78,11 @@ class LLMHandler:
                     cprint(f"[DEBUG] JSONDecodeError, attempting repair_json.", "yellow")
                 start, end = text_output.find("{"), text_output.rfind("}")
                 if start != -1 and end != -1:
-                    candidate = text_output[start:end + 1]
-                    if self.DEBUG:
-                        cprint(f"[DEBUG] candidate for repair_json: {candidate}...", "yellow")
-                    result = json.loads(repair_json(candidate))
+                    repaired_candidate = repair_json(text_output[start:end + 1])
+                    result = json.loads(repaired_candidate)
                     if self.DEBUG:
                         cprint(f"[DEBUG] JSON loaded after repair_json.", "green")
-                        cprint(f"[DEBUG] Repaired result: {repair_json(candidate)}", "green")
+                        cprint(f"[DEBUG] Repaired result: {repaired_candidate}", "green")
                     return result
                 if self.DEBUG:
                     cprint(f"[DEBUG] Could not find JSON object in response.", "red")
