@@ -72,7 +72,7 @@ with st.sidebar:
     # Model selector dropdown
     model_name = st.selectbox(
         "Select Ollama Model",
-        options=["qwen2.5vl:7b", "qwen3-vl:4b", "qwen3-vl:8b", "minicpm-v:8b", "gemma3:4b"],
+        options=["qwen2.5vl:3b","qwen2.5vl:7b", "qwen3-vl:4b", "qwen3-vl:8b", "minicpm-v:8b", "gemma3:4b", "bakllava:7b"],
         index=0,
         help="Choose the vision model to use for extraction"
     )
@@ -81,35 +81,35 @@ with st.sidebar:
     
     extract_button = st.button("🚀 Extract Data", type="primary", use_container_width=True)
 
+# Handle PDF upload and conversion (OUTSIDE tabs to avoid re-running)
+if uploaded_pdf and not st.session_state.pdf_uploaded:
+    # Save uploaded file temporarily
+    pdf_path = Path("temp_upload.pdf")
+    with open(pdf_path, "wb") as f:
+        f.write(uploaded_pdf.read())
+    
+    # Convert to images for preview
+    with st.spinner("⚙️ Converting PDF pages..."):
+        try:
+            pages = convert_from_path(pdf_path, dpi=150)
+            # Thumbnail the images
+            max_width, max_height = 1024, 1024
+            for img in pages:
+                img.thumbnail((max_width, max_height))
+            
+            st.session_state.pdf_pages = pages
+            st.session_state.pdf_uploaded = True
+            st.session_state.page_selection_confirmed = False
+            st.success(f"✅ Converted {len(pages)} pages.")
+        except Exception as e:
+            st.error(f"Error converting PDF to images: {e}")
+            st.stop()
+
 # Main area tabs
 tab1, tab2, tab3 = st.tabs(["📊 Extraction", "✏️ Edit & Approve", "💾 Export"])
 
 with tab1:
     st.header("Extraction Results")
-    
-    # Handle PDF upload and conversion
-    if uploaded_pdf and not st.session_state.pdf_uploaded:
-        # Save uploaded file temporarily
-        pdf_path = Path("temp_upload.pdf")
-        with open(pdf_path, "wb") as f:
-            f.write(uploaded_pdf.read())
-        
-        # Convert to images for preview
-        with st.spinner("⚙️ Converting PDF pages..."):
-            try:
-                pages = convert_from_path(pdf_path, dpi=150)
-                # Thumbnail the images
-                max_width, max_height = 1024, 1024
-                for img in pages:
-                    img.thumbnail((max_width, max_height))
-                
-                st.session_state.pdf_pages = pages
-                st.session_state.pdf_uploaded = True
-                st.session_state.page_selection_confirmed = False
-                st.success(f"✅ Converted {len(pages)} pages.")
-            except Exception as e:
-                st.error(f"Error converting PDF to images: {e}")
-                st.stop()
     
     # Show page preview and selection if PDF is uploaded but not confirmed
     if st.session_state.pdf_uploaded and not st.session_state.page_selection_confirmed:
@@ -302,11 +302,10 @@ with tab2:
             # Get merged data from extraction
             merged_data = st.session_state.extraction_results.get('merged_data', {})
             
-            # Apply mapping transformation
+            # Apply mapping transformation (only once)
             if st.session_state.edited_data is None:
                 mapped_data = apply_mapping(merged_data)
                 st.session_state.edited_data = mapped_data.copy()
-                st.success("✅ Data automatically mapped from extracted JSON using field_mapping_config.json")
             
             # Get property names in order
             property_names = get_property_names_in_order()
