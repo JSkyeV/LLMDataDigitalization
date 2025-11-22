@@ -3,6 +3,7 @@ import json
 import time
 import csv
 from pathlib import Path
+from pdf2image import convert_from_path
 from ocr_extractor import extract_from_pdf, count_filled_fields
 from field_transformer import (
     apply_mapping,
@@ -22,6 +23,12 @@ if 'view_mode' not in st.session_state:
     st.session_state.view_mode = "JSON View"
 if 'data_appended' not in st.session_state:
     st.session_state.data_appended = False
+if 'pdf_uploaded' not in st.session_state:
+    st.session_state.pdf_uploaded = False
+if 'pdf_pages' not in st.session_state:
+    st.session_state.pdf_pages = None
+if 'page_selection_confirmed' not in st.session_state:
+    st.session_state.page_selection_confirmed = False
 
 st.title("📄 TOT Form Data Extractor")
 st.markdown("Extract structured data from PDF forms using Ollama Vision Models")
@@ -30,7 +37,17 @@ st.markdown("Extract structured data from PDF forms using Ollama Vision Models")
 with st.sidebar:
     st.header("⚙️ Configuration")
     
-    uploaded_pdf = st.file_uploader("Upload PDF Form", type=['pdf'])
+    uploaded_pdf = st.file_uploader("Upload PDF Form", type=['pdf'], key="pdf_uploader")
+    
+    # Reset button if PDF is uploaded
+    if st.session_state.pdf_uploaded:
+        if st.button("🔄 Upload New PDF", use_container_width=True):
+            st.session_state.pdf_uploaded = False
+            st.session_state.pdf_pages = None
+            st.session_state.page_selection_confirmed = False
+            st.session_state.extraction_results = None
+            st.session_state.edited_data = None
+            st.rerun()
     
     # Schema mode selector
     use_split_schema = st.checkbox(
@@ -70,81 +87,148 @@ tab1, tab2, tab3 = st.tabs(["📊 Extraction", "✏️ Edit & Approve", "💾 Ex
 with tab1:
     st.header("Extraction Results")
     
-    if extract_button and not uploaded_pdf:
-        st.warning("⚠️ Please upload a PDF file first!")
-    
-    if extract_button and uploaded_pdf:
+    # Handle PDF upload and conversion
+    if uploaded_pdf and not st.session_state.pdf_uploaded:
         # Save uploaded file temporarily
         pdf_path = Path("temp_upload.pdf")
         with open(pdf_path, "wb") as f:
             f.write(uploaded_pdf.read())
         
-        # Run extraction with progress
-        with st.spinner("🔄 Processing PDF..."):
-            start_time = time.time()
-            
+        # Convert to images for preview
+        with st.spinner("⚙️ Converting PDF pages..."):
             try:
-                if use_split_schema:
-                    # Split schema mode - match each page to a schema
-                    schema_dir = Path(__file__).parent.parent / "schema"
-                    
-                    if not schema_dir.exists():
-                        st.error(f"❌ Schema directory not found: {schema_dir}")
-                        st.stop()
-                    
-                    results, timings = extract_from_pdf(
-                        str(pdf_path),
-                        schema_path=None,  # Not used in split mode
-                        output_path=None,
-                        model_name=model_name,
-                        use_split_schema=True,
-                        schema_dir=str(schema_dir)
-                    )
-                else:
-                    # Single schema mode - use one schema for all pages
-                    schema_path = "ocr_schema.json"
-                    if schema_file:
-                        schema_path = "temp_schema.json"
-                        with open(schema_path, "w") as f:
-                            f.write(schema_file.read().decode())
-                    
-                    results, timings = extract_from_pdf(
-                        str(pdf_path), 
-                        schema_path, 
-                        output_path=None,
-                        model_name=model_name,
-                        use_split_schema=False
-                    )
+                pages = convert_from_path(pdf_path, dpi=150)
+                # Thumbnail the images
+                max_width, max_height = 1024, 1024
+                for img in pages:
+                    img.thumbnail((max_width, max_height))
                 
-                st.session_state.extraction_results = results
-                st.session_state.edited_data = None  # Reset edited data
-                st.session_state.data_appended = False  # Reset append flag for new document
-                
-                # Display model used and schema mode
-                schema_mode = results['metadata'].get('schema_mode', 'single')
-                st.info(f"🤖 Extracted using model: **{results['metadata'].get('model_name', 'Unknown')}** | Schema mode: **{schema_mode}**")
-                
-                # Display summary metrics
-                col1, col2, col3, col4 = st.columns(4)
-                
-                with col1:
-                    st.metric("⏱️ Total Time", f"{results['metadata']['total_time_seconds']}s")
-                
-                with col2:
-                    st.metric("📄 Pages", results['metadata']['total_pages'])
-                
-                with col3:
-                    st.metric("⚡ Avg Time/Page", f"{results['metadata']['average_time_per_page']}s")
-                
-                with col4:
-                    st.metric("📝 Filled Fields", results['metadata']['total_filled_fields'])
-                
-                st.success("✅ Extraction completed!")
-                
+                st.session_state.pdf_pages = pages
+                st.session_state.pdf_uploaded = True
+                st.session_state.page_selection_confirmed = False
+                st.success(f"✅ Converted {len(pages)} pages.")
             except Exception as e:
-                st.error(f"❌ Extraction failed: {e}")
-                import traceback
-                st.code(traceback.format_exc())
+                st.error(f"Error converting PDF to images: {e}")
+                st.stop()
+    
+    # Show page preview and selection if PDF is uploaded but not confirmed
+    if st.session_state.pdf_uploaded and not st.session_state.page_selection_confirmed:
+        st.subheader("🔍 Preview PDF Pages")
+        st.info("Select which pages to include in the extraction")
+        
+        pages = st.session_state.pdf_pages
+        include_pages = []
+        
+        # Display pages in a grid
+        cols_per_row = 4
+        for i in range(0, len(pages), cols_per_row):
+            cols = st.columns(cols_per_row)
+            for j in range(cols_per_row):
+                page_idx = i + j
+                if page_idx < len(pages):
+                    with cols[j]:
+                        st.image(pages[page_idx], caption=f"Page {page_idx + 1}")
+                        include = st.checkbox(
+                            f"Include Page {page_idx + 1}", 
+                            value=True, 
+                            key=f"include_{page_idx + 1}"
+                        )
+                        include_pages.append(include)
+        
+        # Confirmation buttons
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("✅ Confirm Pages and Extract", use_container_width=True):
+                st.session_state.page_selection_confirmed = True
+                st.session_state.selected_pages = include_pages
+                st.rerun()
+        with col2:
+            if st.button("❌ Cancel", use_container_width=True):
+                st.session_state.pdf_uploaded = False
+                st.session_state.pdf_pages = None
+                st.session_state.page_selection_confirmed = False
+                st.rerun()
+    
+    # Run extraction after page selection is confirmed
+    if st.session_state.page_selection_confirmed and st.session_state.pdf_pages:
+        pdf_path = Path("temp_upload.pdf")
+        
+        # Get selected pages
+        selected_page_indices = [i for i, include in enumerate(st.session_state.selected_pages) if include]
+        
+        if not selected_page_indices:
+            st.warning("No pages selected for extraction.")
+        else:
+            st.info(f"Processing {len(selected_page_indices)} selected pages...")
+            
+            # Run extraction with progress
+            with st.spinner("🔄 Processing PDF..."):
+                start_time = time.time()
+                
+                try:
+                    if use_split_schema:
+                        # Split schema mode - match each page to a schema
+                        schema_dir = Path(__file__).parent.parent / "schema"
+                        
+                        if not schema_dir.exists():
+                            st.error(f"❌ Schema directory not found: {schema_dir}")
+                            st.stop()
+                        
+                        results, timings = extract_from_pdf(
+                            str(pdf_path),
+                            schema_path=None,  # Not used in split mode
+                            output_path=None,
+                            model_name=model_name,
+                            use_split_schema=True,
+                            schema_dir=str(schema_dir),
+                            selected_page_indices=selected_page_indices
+                        )
+                    else:
+                        # Single schema mode - use one schema for all pages
+                        schema_path = "ocr_schema.json"
+                        if schema_file:
+                            schema_path = "temp_schema.json"
+                            with open(schema_path, "w") as f:
+                                f.write(schema_file.read().decode())
+                        
+                        results, timings = extract_from_pdf(
+                            str(pdf_path), 
+                            schema_path, 
+                            output_path=None,
+                            model_name=model_name,
+                            use_split_schema=False,
+                            selected_page_indices=selected_page_indices
+                        )
+                    
+                    st.session_state.extraction_results = results
+                    st.session_state.edited_data = None  # Reset edited data
+                    st.session_state.data_appended = False  # Reset append flag for new document
+                    
+                    # Display model used and schema mode
+                    schema_mode = results['metadata'].get('schema_mode', 'single')
+                    st.info(f"🤖 Extracted using model: **{results['metadata'].get('model_name', 'Unknown')}** | Schema mode: **{schema_mode}**")
+                    
+                    # Display summary metrics
+                    col1, col2, col3, col4 = st.columns(4)
+                    
+                    with col1:
+                        st.metric("⏱️ Total Time", f"{results['metadata']['total_time_seconds']}s")
+                    
+                    with col2:
+                        st.metric("📄 Pages", results['metadata']['total_pages'])
+                    
+                    with col3:
+                        st.metric("⚡ Avg Time/Page", f"{results['metadata']['average_time_per_page']}s")
+                    
+                    with col4:
+                        st.metric("📝 Filled Fields", results['metadata']['total_filled_fields'])
+                    
+                    st.success("✅ Extraction completed!")
+                    
+                except Exception as e:
+                    st.error(f"❌ Extraction failed: {e}")
+                    import traceback
+                    st.code(traceback.format_exc())
     
     # Display results if available
     if st.session_state.extraction_results:

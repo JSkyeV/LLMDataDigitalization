@@ -235,7 +235,7 @@ Return valid JSON according to the provided schema.
                 raise
 
 
-def extract_from_pdf(pdf_path, schema_path, output_path=None, model_name=None, use_split_schema=False, schema_dir=None):
+def extract_from_pdf(pdf_path, schema_path, output_path=None, model_name=None, use_split_schema=False, schema_dir=None, selected_page_indices=None):
     """
     Extract structured JSON from a PDF using Ollama vision model.
     
@@ -246,6 +246,7 @@ def extract_from_pdf(pdf_path, schema_path, output_path=None, model_name=None, u
         model_name: Optional model name to use (overrides .env)
         use_split_schema: If True, use per-page schema matching
         schema_dir: Directory containing schema1.json, schema2.json, etc. (required if use_split_schema=True)
+        selected_page_indices: Optional list of page indices (0-based) to process. If None, process all pages.
     
     Returns: (results_dict, timing_info)
     """
@@ -258,6 +259,11 @@ def extract_from_pdf(pdf_path, schema_path, output_path=None, model_name=None, u
     logger.info(f"📄 Converting PDF: {pdf_path}")
     images = convert_from_path(pdf_path, dpi=200)
     logger.info(f"✅ Converted {len(images)} page(s)")
+    
+    # Filter pages if selected_page_indices is provided
+    if selected_page_indices is not None:
+        images = [images[i] for i in selected_page_indices if i < len(images)]
+        logger.info(f"📌 Processing {len(images)} selected page(s)")
     
     # Process based on schema mode
     if use_split_schema:
