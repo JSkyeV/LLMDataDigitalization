@@ -21,9 +21,6 @@ class LLMHandler:
         load_dotenv()
 
         self.model_name = os.getenv("LLM_MODEL_NAME")
-        # API key retrieval commented out for Ollama usage
-        # api_key_env = os.getenv("LLM_API_KEY_ENV")
-        # self.api_key = api_key_env       #os.getenv(api_key_env) if api_key_env else None
         self.ollama_host = os.getenv("LLM_OLLAMA_HOST")
         self.DEBUG = os.getenv("DEBUG", "false").lower() == "true"
 
@@ -38,30 +35,7 @@ class LLMHandler:
                 "LLM_MODEL_NAME."
             )
 
-        # -------------------------------------------------------------
-        # 🔧 USER CONFIGURATION SECTION
-        # -------------------------------------------------------------
-        # Import and initialize your model explicitly here.
-        #
-        # Example for Google Gemini:
-        # genai.configure(api_key=self.api_key)
-        # self.model = genai.GenerativeModel(self.model_name)
-        #
-        # Example for OpenAI:
-        #   import openai
-        #   openai.api_key = self.api_key
-        #   self.model = openai
-        #
-        # Example for Anthropic Claude:
-        #   from anthropic import Anthropic
-        #   self.model = Anthropic(api_key=self.api_key)
-        #
-        # -------------------------------------------------------------
-        #     Developers must uncomment and modify this section
-        #     according to their chosen provider.
-        # -------------------------------------------------------------
-        
-        # Utilizing Ollama for a call to a locally-running LLM
+        # USER CONFIGURATION SECTION
         try:
             self.model = ollama.Client(host=self.ollama_host) if self.ollama_host else ollama.Client()
         except Exception as e:
@@ -71,21 +45,14 @@ class LLMHandler:
 
     def generate_json(self, schema_text, page_prompt, image_bytes):
         try:
-            # Convert image bytes to base64 for Ollama
             image_base64 = base64.b64encode(image_bytes).decode('utf-8')
             if self.DEBUG:
                 cprint(f"[DEBUG] image_base64 length: {len(image_base64)}", "cyan")
 
-            # Combine the prompts
             combined_prompt = f"{schema_text}\n\n{page_prompt}"
             if self.DEBUG:
-                cprint(f"[DEBUG] combined_prompt: {combined_prompt[:200]}...", "cyan")  # Print first 200 chars
+                cprint(f"[DEBUG] combined_prompt: {combined_prompt[:200]}...", "cyan")
 
-            # print(combined_prompt)  # Debug: print the combined prompt
-        
-            # Call Ollama's generate method
-            if self.DEBUG:
-                cprint(f"[DEBUG] Calling Ollama generate with model: {self.model_name}", "cyan")
             response = self.model.generate(
                 model=self.model_name,
                 prompt=combined_prompt,
@@ -94,12 +61,11 @@ class LLMHandler:
                 options={
                     "temperature": 0,
                     "top_p": 1,
-                    "num_ctx": 10000,       # Large context for your big schema
-                    "num_predict": 3000,    # Enough tokens for detailed JSON output
+                    "num_ctx": 16000,
+                    "num_predict": 6000,
                 }
             )
 
-            # Extract response text
             text_output = response.get('response', '')
             if self.DEBUG:
                 cprint(f"[DEBUG] text_output (first 500 chars): {text_output[:500]}", "cyan")
@@ -117,13 +83,15 @@ class LLMHandler:
                 if start != -1 and end != -1:
                     candidate = text_output[start:end + 1]
                     if self.DEBUG:
-                        cprint(f"[DEBUG] candidate for repair_json: {candidate[:500]}", "yellow")
+                        cprint(f"[DEBUG] candidate for repair_json: {candidate}...", "yellow")
                     result = json.loads(repair_json(candidate))
                     if self.DEBUG:
                         cprint(f"[DEBUG] JSON loaded after repair_json.", "green")
+                        cprint(f"[DEBUG] Repaired result: {repair_json(candidate)}", "green")
                     return result
                 if self.DEBUG:
                     cprint(f"[DEBUG] Could not find JSON object in response.", "red")
+                    cprint(f"[DEBUG] Full text_output: {text_output}", "red")
                 raise
 
         except Exception as e:

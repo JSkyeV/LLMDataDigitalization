@@ -28,13 +28,13 @@ Return strictly valid JSON. Do not include comments, trailing commas, or extra t
 """
 
 SCHEMA_MATCH_PROMPT = """
-You are an expert at matching scanned form pages to their expected schema.
+Does this image of a form page match this schema?
+1. Prioritize exact matches of any 'enum' fields, then descriptions (quoted from form until ; following is property information), then property names.
+2. A correlation of 70% or higher indicates a match.
+Reply only 'yes' or 'no'.
 
-Given the following schema descriptions:
-{schema_descriptions}
-
-Analyze the provided page image and determine which schema best matches the content and field descriptions visible on this page.
-Return ONLY the schema filename (e.g., "schema3.json") that best fits, or "none" if no schema matches.
+Schema:
+{schema_text}
 """
 
 def extract_page_json(llm, page_image, page_num, schema_text):
@@ -83,45 +83,55 @@ def merge_page_results(results):
         deep_merge_dicts(merged, page_data)
     return merged
 
-def get_schema_descriptions(schema_dir):
-    schema_files = sorted(Path(schema_dir).glob("schema*.json"))
-    descriptions = []
+def get_all_schema(schema_dir):
+    def extract_num(f):
+        stem = Path(f).stem
+        num = ''.join(filter(str.isdigit, stem))
+        return int(num) if num else 0
+
+    schema_files = sorted(
+        Path(schema_dir).glob("schema*.json"),
+        key=extract_num
+    )
+    return schema_files
+
+def match_page_to_schema(llm, page_image, schema_files):
+    """
+    For each schema, ask the SCHEMA_MATCH_PROMPT with the page image.
+    If 'yes', return that schema filename. If all 'no', return 'none'.
+    """
+    image_b64 = base64.b64encode(page_image).decode('utf-8')
     for schema_file in schema_files:
         with open(schema_file, "r", encoding="utf-8") as f:
             schema = json.load(f)
-        desc = []
-        for k, v in schema.get("properties", {}).items():
-            if isinstance(v, dict) and "description" in v:
-                desc.append(f"{k}: {v['description']}")
-            else:
-                desc.append(k)
-        descriptions.append(f"{schema_file.name}: " + "; ".join(desc))
-    return schema_files, "\n".join(descriptions)
-
-def match_page_to_schema(llm, page_image, schema_descriptions):
-    prompt = SCHEMA_MATCH_PROMPT.format(schema_descriptions=schema_descriptions)
-    for attempt in range(3):
-        try:
-            response = llm.model.generate(
-                model=llm.model_name,
-                prompt=prompt,
-                images=[base64.b64encode(page_image).decode('utf-8')],
-                stream=False,
-                options={
-                    "temperature": 0,
-                    "top_p": 1,
-                    "num_ctx": 4096,
-                    "num_predict": 128,
-                }
-            )
-            schema_name = response.get('response', '').strip().replace('"', '')
-            return schema_name
-        except Exception as e:
-            cprint(f"Schema match error: {e}", "red")
-            if attempt < 2:
-                time.sleep(2 ** attempt)
-            else:
-                raise
+        schema_text = json.dumps(schema, indent=2, ensure_ascii=False)
+        prompt = SCHEMA_MATCH_PROMPT.format(schema_text=schema_text)
+        for attempt in range(3):
+            try:
+                response = llm.model.generate(
+                    model=llm.model_name,
+                    prompt=prompt,
+                    images=[image_b64],
+                    stream=False,
+                    options={
+                        "temperature": 0,
+                        "top_p": 1,
+                        "num_ctx": 10000,
+                        "num_predict": 16,
+                    }
+                )
+                answer = response.get('response', '').strip().lower()
+                if ("yes" in answer.lower()):
+                    return schema_file.name
+                elif ("no" in answer.lower()):
+                    break
+            except Exception as e:
+                cprint(f"Schema match error for {schema_file.name}: {e}", "red")
+                if attempt < 2:
+                    time.sleep(2 ** attempt)
+                else:
+                    break
+    return "none"
 
 def main():
     try:
@@ -134,15 +144,17 @@ def main():
         load_dotenv()
         llm = LLMHandler()
 
+        cprint(f"PDF: {args.pdf}", "green")
         cprint(f"Converting {args.pdf} to images...", "cyan")
         pages = convert_from_path(args.pdf, dpi=150)
+        cprint(f"Pages: {pages}", "green")
         cprint(f"{len(pages)} pages converted.\n", "cyan")
 
-        schema_files, schema_descriptions = get_schema_descriptions(args.schema_dir)
+        schema_files = get_all_schema(args.schema_dir)
 
         matched_pages = []
         matched_schemas = []
-        temp_files = [] 
+        temp_files = []
         for i, page in enumerate(pages, start=1):
             cprint(f"Matching page {i} to schema...", "cyan")
             with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
@@ -150,8 +162,8 @@ def main():
                 temp_files.append(tmp.name)
                 with open(tmp.name, "rb") as img_file:
                     img_bytes = img_file.read()
-                schema_name = match_page_to_schema(llm, img_bytes, schema_descriptions)
-                if schema_name == "none":
+                schema_name = match_page_to_schema(llm, img_bytes, schema_files)
+                if schema_name == "none" or not schema_name:
                     cprint(f"Page {i} does not match any schema. Skipping.", "yellow")
                     continue
                 schema_path = Path(args.schema_dir) / schema_name
