@@ -31,7 +31,26 @@ with st.sidebar:
     st.header("⚙️ Configuration")
     
     uploaded_pdf = st.file_uploader("Upload PDF Form", type=['pdf'])
-    schema_file = st.file_uploader("Upload Schema (optional)", type=['json'])
+    
+    # Schema mode selector
+    use_split_schema = st.checkbox(
+        "Use Split Schema (per-page matching)",
+        value=False,
+        help="Enable to match each page to different schema files (schema1.json, schema2.json, etc.)"
+    )
+    
+    if use_split_schema:
+        # For split schema mode, use schema directory
+        schema_dir_path = Path(__file__).parent.parent / "schema"
+        if schema_dir_path.exists():
+            schema_files_count = len(list(schema_dir_path.glob("schema*.json")))
+            st.info(f"📁 Using schema directory with {schema_files_count} schema files")
+        else:
+            st.warning(f"⚠️ Schema directory not found: {schema_dir_path}")
+        schema_file = None
+    else:
+        # For single schema mode, allow upload
+        schema_file = st.file_uploader("Upload Schema (optional)", type=['json'])
     
     # Model selector dropdown
     model_name = st.selectbox(
@@ -51,37 +70,59 @@ tab1, tab2, tab3 = st.tabs(["📊 Extraction", "✏️ Edit & Approve", "💾 Ex
 with tab1:
     st.header("Extraction Results")
     
+    if extract_button and not uploaded_pdf:
+        st.warning("⚠️ Please upload a PDF file first!")
+    
     if extract_button and uploaded_pdf:
         # Save uploaded file temporarily
         pdf_path = Path("temp_upload.pdf")
         with open(pdf_path, "wb") as f:
             f.write(uploaded_pdf.read())
         
-        # Use default schema or uploaded
-        schema_path = "ocr_schema.json"
-        if schema_file:
-            schema_path = "temp_schema.json"
-            with open(schema_path, "w") as f:
-                f.write(schema_file.read().decode())
-        
         # Run extraction with progress
         with st.spinner("🔄 Processing PDF..."):
             start_time = time.time()
             
             try:
-                results, timings = extract_from_pdf(
-                    str(pdf_path), 
-                    schema_path, 
-                    output_path=None,
-                    model_name=model_name
-                )
+                if use_split_schema:
+                    # Split schema mode - match each page to a schema
+                    schema_dir = Path(__file__).parent.parent / "schema"
+                    
+                    if not schema_dir.exists():
+                        st.error(f"❌ Schema directory not found: {schema_dir}")
+                        st.stop()
+                    
+                    results, timings = extract_from_pdf(
+                        str(pdf_path),
+                        schema_path=None,  # Not used in split mode
+                        output_path=None,
+                        model_name=model_name,
+                        use_split_schema=True,
+                        schema_dir=str(schema_dir)
+                    )
+                else:
+                    # Single schema mode - use one schema for all pages
+                    schema_path = "ocr_schema.json"
+                    if schema_file:
+                        schema_path = "temp_schema.json"
+                        with open(schema_path, "w") as f:
+                            f.write(schema_file.read().decode())
+                    
+                    results, timings = extract_from_pdf(
+                        str(pdf_path), 
+                        schema_path, 
+                        output_path=None,
+                        model_name=model_name,
+                        use_split_schema=False
+                    )
                 
                 st.session_state.extraction_results = results
                 st.session_state.edited_data = None  # Reset edited data
                 st.session_state.data_appended = False  # Reset append flag for new document
                 
-                # Display model used
-                st.info(f"🤖 Extracted using model: **{results['metadata'].get('model_name', 'Unknown')}**")
+                # Display model used and schema mode
+                schema_mode = results['metadata'].get('schema_mode', 'single')
+                st.info(f"🤖 Extracted using model: **{results['metadata'].get('model_name', 'Unknown')}** | Schema mode: **{schema_mode}**")
                 
                 # Display summary metrics
                 col1, col2, col3, col4 = st.columns(4)
@@ -123,15 +164,21 @@ with tab1:
         st.divider()
         st.subheader("📄 Page-by-Page Timing")
         
-        # Page timing table
+        # Page timing table with schema info if available
         timing_data = results['page_timings']
+        column_config = {
+            "page": "Page #",
+            "time": st.column_config.NumberColumn("Processing Time (s)", format="%.2f"),
+            "filled_fields": "Filled Fields"
+        }
+        
+        # Add schema column if in split schema mode
+        if timing_data and 'schema' in timing_data[0]:
+            column_config["schema"] = "Schema File"
+        
         st.dataframe(
             timing_data,
-            column_config={
-                "page": "Page #",
-                "time": st.column_config.NumberColumn("Processing Time (s)", format="%.2f"),
-                "filled_fields": "Filled Fields"
-            },
+            column_config=column_config,
             hide_index=True,
             use_container_width=True
         )
@@ -141,7 +188,8 @@ with tab1:
         # Individual page results (for debugging)
         with st.expander("🔧 Debug: Individual Page Results"):
             for page_result in results['pages']:
-                with st.expander(f"📄 Page {page_result['page']} - {page_result['filled_fields']} fields ({page_result['processing_time']:.2f}s)"):
+                schema_info = f" - Schema: {page_result.get('schema', 'N/A')}" if 'schema' in page_result else ""
+                with st.expander(f"📄 Page {page_result['page']} - {page_result['filled_fields']} fields ({page_result['processing_time']:.2f}s){schema_info}"):
                     st.json(page_result['data'])
 
 with tab2:

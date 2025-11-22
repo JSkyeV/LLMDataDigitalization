@@ -77,6 +77,9 @@ class LLMHandler:
             logger.error(f"Ollama connection error: {e}")
             logger.info("Attempting to proceed anyway - Ollama may still work...")
             # Don't raise - allow it to fail later if there's a real problem
+        
+        # Create model client for direct generate() calls (needed for schema matching)
+        self.model = ollama.Client(host=self.base_url) if self.base_url != "http://localhost:11434" else ollama
 
     def _extract_json_from_response(self, text):
         """Extract JSON from Ollama output."""
