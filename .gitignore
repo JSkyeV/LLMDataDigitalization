@@ -1,0 +1,16 @@
+data
+*.pdf
+*.png
+.DS_Store
+__pycache__/
+output/
+temp/
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
