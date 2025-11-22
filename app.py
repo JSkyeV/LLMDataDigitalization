@@ -33,7 +33,15 @@ with st.sidebar:
     uploaded_pdf = st.file_uploader("Upload PDF Form", type=['pdf'])
     schema_file = st.file_uploader("Upload Schema (optional)", type=['json'])
     
-    model_name = st.text_input("Ollama Model", value="qwen2.5vl")
+    # Model selector dropdown
+    model_name = st.selectbox(
+        "Select Ollama Model",
+        options=["qwen2.5vl:7b", "qwen3-vl:4b", "qwen3-vl:8b", "minicpm-v:8b", "gemma3:4b"],
+        index=0,
+        help="Choose the vision model to use for extraction"
+    )
+    
+    st.info(f"🤖 Using: **{model_name}**")
     
     extract_button = st.button("🚀 Extract Data", type="primary", use_container_width=True)
 
@@ -64,12 +72,16 @@ with tab1:
                 results, timings = extract_from_pdf(
                     str(pdf_path), 
                     schema_path, 
-                    output_path=None
+                    output_path=None,
+                    model_name=model_name
                 )
                 
                 st.session_state.extraction_results = results
                 st.session_state.edited_data = None  # Reset edited data
                 st.session_state.data_appended = False  # Reset append flag for new document
+                
+                # Display model used
+                st.info(f"🤖 Extracted using model: **{results['metadata'].get('model_name', 'Unknown')}**")
                 
                 # Display summary metrics
                 col1, col2, col3, col4 = st.columns(4)

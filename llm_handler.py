@@ -13,12 +13,17 @@ logger = logging.getLogger(__name__)
 
 
 class LLMHandler:
-    def __init__(self):
-        """Initialize the LLM handler to use Ollama."""
+    def __init__(self, model_name=None):
+        """Initialize the LLM handler to use Ollama.
+        
+        Args:
+            model_name: Optional model name to override .env configuration
+        """
         load_dotenv()
 
         self.base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-        self.model_name = os.getenv("OLLAMA_MODEL", "qwen2.5vl")
+        # Use provided model_name or fall back to .env or default
+        self.model_name = model_name or os.getenv("OLLAMA_MODEL", "qwen2.5vl")
         
         if not self.model_name:
             raise RuntimeError("Missing OLLAMA_MODEL in .env")
@@ -92,28 +97,42 @@ class LLMHandler:
             return parsed
         except json.JSONDecodeError as e:
             logger.info(f"⚠️ Direct parse failed at pos {e.pos}")
+            logger.info(f"⚠️ Error message: {e.msg}")
+            logger.info(f"⚠️ First 500 chars around error: {text_str[max(0, e.pos-250):e.pos+250]}")
         
         # Extract JSON object or array
         json_match = re.search(r'[\{\[].*[\}\]]', text_str, re.DOTALL)
         if json_match:
             json_str = json_match.group(0)
+            logger.info(f"📦 Extracted JSON string length: {len(json_str)}")
+            logger.info(f"📦 First 500 chars of extracted JSON: {json_str[:500]}")
             
             try:
                 parsed = json.loads(json_str)
                 logger.info(f"✅ Parsed after extraction")
                 return parsed
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as e2:
+                logger.info(f"❌ Extraction parse failed at pos {e2.pos}")
+                logger.info(f"❌ Error message: {e2.msg}")
+                logger.info(f"❌ First 500 chars around error: {json_str[max(0, e2.pos-250):e2.pos+250]}")
+                
                 # Try repair
                 try:
                     repaired = repair_json(json_str)
+                    logger.info(f"🔧 Repair attempted, first 500 chars: {repaired[:500]}")
                     parsed = json.loads(repaired)
                     logger.info(f"✅ Parsed after repair")
                     return parsed
+                except json.JSONDecodeError as e3:
+                    logger.info(f"❌ Repair parse failed at pos {e3.pos}")
+                    logger.info(f"❌ Error message: {e3.msg}")
+                    logger.info(f"❌ First 500 chars of repaired around error: {repaired[max(0, e3.pos-250):e3.pos+250]}")
                 except Exception as e_repair:
                     logger.info(f"❌ Repair failed: {e_repair}")
         
         # Return raw text if JSON extraction fails
         logger.info(f"⚠️ Could not parse as JSON. Returning raw text.")
+        logger.info(f"⚠️ Full text (first 1000 chars): {text_str[:1000]}")
         return {"raw_text": text_str[:5000]}
 
     def generate_json(self, schema_text, page_prompt, image_bytes):
@@ -146,7 +165,7 @@ EXAMPLES OF GOOD EXTRACTION:
 
 {page_prompt}
 
-Return ONLY valid JSON with the extracted data."""
+CRITICAL: Return ONLY valid JSON with the extracted data."""
 
             logger.info(f"🔄 Sending request to Ollama model: {self.model_name}")
             

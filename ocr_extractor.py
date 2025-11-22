@@ -86,9 +86,16 @@ def merge_page_extractions(page_results):
     return merged
 
 
-def extract_from_pdf(pdf_path, schema_path, output_path=None):
+def extract_from_pdf(pdf_path, schema_path, output_path=None, model_name=None):
     """
     Extract structured JSON from a PDF using Ollama vision model.
+    
+    Args:
+        pdf_path: Path to the PDF file
+        schema_path: Path to the JSON schema file
+        output_path: Optional path to save results
+        model_name: Optional model name to use (overrides .env)
+    
     Returns: (results_dict, timing_info)
     """
     start_time = time.time()
@@ -97,8 +104,8 @@ def extract_from_pdf(pdf_path, schema_path, output_path=None):
     schema = load_schema(schema_path)
     schema_text = json.dumps(schema, indent=2)
     
-    # Initialize LLM handler
-    llm = LLMHandler()
+    # Initialize LLM handler with specified model
+    llm = LLMHandler(model_name=model_name)
     
     # Convert PDF to images
     logger.info(f"📄 Converting PDF: {pdf_path}")
@@ -159,6 +166,7 @@ def extract_from_pdf(pdf_path, schema_path, output_path=None):
     output_data = {
         'metadata': {
             'pdf_path': str(pdf_path),
+            'model_name': llm.model_name,
             'total_pages': len(images),
             'total_time_seconds': round(total_time, 2),
             'average_time_per_page': round(total_time / len(images), 2),
