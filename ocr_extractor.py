@@ -235,7 +235,16 @@ Return valid JSON according to the provided schema.
                 raise
 
 
-def extract_from_pdf(pdf_path, schema_path, output_path=None, model_name=None, use_split_schema=False, schema_dir=None, selected_page_indices=None):
+def extract_from_pdf(
+    pdf_path,
+    schema_path,
+    output_path=None,
+    model_name=None,
+    use_split_schema=False,
+    schema_dir=None,
+    selected_page_indices=None,
+    matched_schema_names=None 
+):
     """
     Extract structured JSON from a PDF using Ollama vision model.
     
@@ -247,6 +256,7 @@ def extract_from_pdf(pdf_path, schema_path, output_path=None, model_name=None, u
         use_split_schema: If True, use per-page schema matching
         schema_dir: Directory containing schema1.json, schema2.json, etc. (required if use_split_schema=True)
         selected_page_indices: Optional list of page indices (0-based) to process. If None, process all pages.
+        matched_schema_names: Optional list of schema file names (for split schema mode, overrides auto-matching)
     
     Returns: (results_dict, timing_info)
     """
@@ -274,34 +284,42 @@ def extract_from_pdf(pdf_path, schema_path, output_path=None, model_name=None, u
         schema_files = get_all_schema(schema_dir)
         logger.info(f"📁 Found {len(schema_files)} schema files")
         
-        # Match each page to a schema
         matched_pages = []
         matched_schemas = []
-        matched_schema_names = []
-        
-        for idx, img in enumerate(images, start=1):
-            logger.info(f"\n🔍 Matching page {idx}/{len(images)} to schema...")
-            
-            # Convert image to bytes
-            img_buffer = BytesIO()
-            img.save(img_buffer, format='PNG')
-            img_bytes = img_buffer.getvalue()
-            
-            # Match to schema
-            schema_name = match_page_to_schema(llm, img_bytes, schema_files)
-            
-            if schema_name == "none" or not schema_name:
-                logger.warning(f"⚠️ Page {idx} does not match any schema. Skipping.")
-                continue
-            
-            schema_path_matched = Path(schema_dir) / schema_name
-            if not schema_path_matched.exists():
-                logger.warning(f"⚠️ Matched schema {schema_name} not found. Skipping page {idx}.")
-                continue
-            
-            matched_pages.append(img_bytes)
-            matched_schemas.append(schema_path_matched)
-            matched_schema_names.append(schema_name)
+        matched_schema_names_list = []
+
+        if matched_schema_names is not None:
+            # Use user-provided schema assignments
+            logger.info("📝 Using user-confirmed schema assignments for each page.")
+            schema_file_map = {f.name: f for f in schema_files}
+            for idx, (img, schema_name) in enumerate(zip(images, matched_schema_names), start=1):
+                if schema_name not in schema_file_map:
+                    logger.warning(f"⚠️ Assigned schema {schema_name} not found. Skipping page {idx}.")
+                    continue
+                img_buffer = BytesIO()
+                img.save(img_buffer, format='PNG')
+                img_bytes = img_buffer.getvalue()
+                matched_pages.append(img_bytes)
+                matched_schemas.append(schema_file_map[schema_name])
+                matched_schema_names_list.append(schema_name)
+        else:
+            # Original auto-matching logic
+            for idx, img in enumerate(images, start=1):
+                logger.info(f"\n🔍 Matching page {idx}/{len(images)} to schema...")
+                img_buffer = BytesIO()
+                img.save(img_buffer, format='PNG')
+                img_bytes = img_buffer.getvalue()
+                schema_name = match_page_to_schema(llm, img_bytes, schema_files)
+                if schema_name == "none" or not schema_name:
+                    logger.warning(f"⚠️ Page {idx} does not match any schema. Skipping.")
+                    continue
+                schema_path_matched = Path(schema_dir) / schema_name
+                if not schema_path_matched.exists():
+                    logger.warning(f"⚠️ Matched schema {schema_name} not found. Skipping page {idx}.")
+                    continue
+                matched_pages.append(img_bytes)
+                matched_schemas.append(schema_path_matched)
+                matched_schema_names_list.append(schema_name)
         
         logger.info(f"✅ {len(matched_pages)} pages matched to schemas")
         
@@ -310,7 +328,7 @@ def extract_from_pdf(pdf_path, schema_path, output_path=None, model_name=None, u
         page_timings = []
         all_page_data = []
         
-        for idx, (img_bytes, schema_path_matched, schema_name) in enumerate(zip(matched_pages, matched_schemas, matched_schema_names), start=1):
+        for idx, (img_bytes, schema_path_matched, schema_name) in enumerate(zip(matched_pages, matched_schemas, matched_schema_names_list), start=1):
             page_start = time.time()
             
             logger.info(f"\n{'='*60}")

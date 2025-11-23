@@ -1,10 +1,13 @@
+from io import BytesIO
 import streamlit as st
 import json
 import time
 import csv
 from pathlib import Path
 from pdf2image import convert_from_path
-from ocr_extractor import extract_from_pdf, count_filled_fields
+from llm_handler import LLMHandler
+from ocr_extractor import extract_from_pdf, count_filled_fields, get_all_schema, match_page_to_schema
+
 from field_transformer import (
     apply_mapping,
     get_property_names_in_order,
@@ -31,6 +34,10 @@ if 'page_selection_confirmed' not in st.session_state:
     st.session_state.page_selection_confirmed = False
 if 'extraction_complete' not in st.session_state:
     st.session_state.extraction_complete = False
+if 'schema_matches_confirmed' not in st.session_state:
+    st.session_state.schema_matches_confirmed = False
+if 'matched_schemas' not in st.session_state:
+    st.session_state.matched_schemas = None
 
 st.title("📄 TOT Form Data Extractor")
 st.markdown("Extract structured data from PDF forms using Ollama Vision Models")
@@ -43,7 +50,7 @@ with st.sidebar:
     
     # Reset button if PDF is uploaded
     if st.session_state.pdf_uploaded:
-        if st.button("🔄 Upload New PDF", use_container_width=True):
+        if st.button("🔄 Upload New PDF", width="stretch"):
             st.session_state.pdf_uploaded = False
             st.session_state.pdf_pages = None
             st.session_state.page_selection_confirmed = False
@@ -75,14 +82,14 @@ with st.sidebar:
     # Model selector dropdown
     model_name = st.selectbox(
         "Select Ollama Model",
-        options=["qwen2.5vl:3b","qwen2.5vl:7b", "qwen3-vl:4b", "qwen3-vl:8b", "minicpm-v:8b", "gemma3:4b", "bakllava:7b"],
+        options=["qwen2.5vl:3b","qwen3-vl:2b", "qwen3-vl:4b", "qwen3-vl:4b-instruct-q8_0", "minicpm-v:8b", "gemma3:4b", "bakllava:7b"],
         index=0,
         help="Choose the vision model to use for extraction"
     )
     
     st.info(f"🤖 Using: **{model_name}**")
     
-    extract_button = st.button("🚀 Extract Data", type="primary", use_container_width=True)
+    extract_button = st.button("🚀 Extract Data", type="primary", width="stretch")
 
 # Handle PDF upload and conversion (OUTSIDE tabs to avoid re-running)
 if uploaded_pdf and not st.session_state.pdf_uploaded:
@@ -141,20 +148,95 @@ with tab1:
         # Confirmation buttons
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("✅ Confirm Pages and Extract", use_container_width=True):
+            if st.button("✅ Confirm Pages and Extract", width="stretch"):
                 st.session_state.page_selection_confirmed = True
                 st.session_state.selected_pages = include_pages
                 st.rerun()
         with col2:
-            if st.button("❌ Cancel", use_container_width=True):
+            if st.button("❌ Cancel", width="stretch"):
                 st.session_state.pdf_uploaded = False
                 st.session_state.pdf_pages = None
                 st.session_state.page_selection_confirmed = False
                 st.rerun()
     
-    # Run extraction after page selection is confirmed (only if not already done)
-    if st.session_state.page_selection_confirmed and st.session_state.pdf_pages and not st.session_state.extraction_complete:
+    # Schema matching and confirmation
+    if (
+        st.session_state.page_selection_confirmed
+        and st.session_state.pdf_pages
+        and use_split_schema
+        and not st.session_state.schema_matches_confirmed
+    ):
         pdf_path = Path("temp_upload.pdf")
+        selected_page_indices = [i for i, include in enumerate(st.session_state.selected_pages) if include]
+        pages = st.session_state.pdf_pages
+        selected_pages = [pages[i] for i in selected_page_indices]
+        schema_dir = Path(__file__).parent.parent / "schema"
+        schema_files = list(get_all_schema(str(schema_dir)))
+        schema_file_names = [f.name for f in schema_files]
+
+        # Run schema matching if not already done
+        if st.session_state.matched_schemas is None:
+            st.info("🔍 Matching each selected page to a schema. Please wait...")
+            matched_schemas = []
+            for idx, img in enumerate(selected_pages, start=1):
+                img_buffer = BytesIO()
+                img.save(img_buffer, format='PNG')
+                img_bytes = img_buffer.getvalue()
+                schema_name = match_page_to_schema(
+                    LLMHandler(model_name=model_name), img_bytes, schema_files
+                )
+                # fallback to first schema if no match
+                if schema_name == "none" or schema_name == "" or not schema_name:
+                    schema_name = schema_file_names[0] if schema_file_names else ""
+                matched_schemas.append(schema_name)
+            st.session_state.matched_schemas = matched_schemas
+            st.rerun()
+
+        # UI for user to confirm/override schema matches
+        st.subheader("🔗 Confirm Schema Matches for Each Page")
+        st.info("Review the matched schema for each page. You can override the selection if needed, then confirm to proceed with extraction.")
+
+        # Prepare editable schema assignments
+        schema_assignments = []
+        for idx, (img, default_schema) in enumerate(zip(selected_pages, st.session_state.matched_schemas)):
+            col1, col2 = st.columns([1, 2])
+            with col1:
+                st.image(img, caption=f"Page {selected_page_indices[idx]+1}", width=180)
+            with col2:
+                schema_choice = st.selectbox(
+                    f"Schema for Page {selected_page_indices[idx]+1}",
+                    schema_file_names,
+                    index=schema_file_names.index(default_schema) if default_schema in schema_file_names else 0,
+                    key=f"schema_select_{idx}"
+                )
+                schema_assignments.append(schema_choice)
+
+        # Confirm/cancel buttons
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("✅ Confirm Schema Assignments", key="confirm_schema_assignments"):
+                st.session_state.matched_schemas = schema_assignments
+                st.session_state.schema_matches_confirmed = True
+                st.rerun()
+        with col2:
+            if st.button("❌ Back to Page Selection", key="back_to_page_selection"):
+                st.session_state.page_selection_confirmed = False
+                st.session_state.matched_schemas = None
+                st.session_state.schema_matches_confirmed = False
+                st.rerun()
+        st.stop()
+
+    # --- Extraction after schema confirmation ---
+    if (
+        st.session_state.page_selection_confirmed
+        and st.session_state.pdf_pages
+        and (
+            (not use_split_schema and not st.session_state.extraction_complete)
+            or (use_split_schema and st.session_state.schema_matches_confirmed and not st.session_state.extraction_complete)
+        )
+    ):
+        pdf_path = Path("temp_upload.pdf")
+        selected_page_indices = [i for i, include in enumerate(st.session_state.selected_pages) if include]
         
         # Get selected pages
         selected_page_indices = [i for i, include in enumerate(st.session_state.selected_pages) if include]
@@ -170,21 +252,21 @@ with tab1:
                 
                 try:
                     if use_split_schema:
-                        # Split schema mode - match each page to a schema
                         schema_dir = Path(__file__).parent.parent / "schema"
-                        
                         if not schema_dir.exists():
                             st.error(f"❌ Schema directory not found: {schema_dir}")
                             st.stop()
-                        
+                        # Use user-confirmed schema assignments
+                        matched_schema_names = st.session_state.matched_schemas
                         results, timings = extract_from_pdf(
                             str(pdf_path),
-                            schema_path=None,  # Not used in split mode
+                            schema_path=None,
                             output_path=None,
                             model_name=model_name,
                             use_split_schema=True,
                             schema_dir=str(schema_dir),
-                            selected_page_indices=selected_page_indices
+                            selected_page_indices=selected_page_indices,
+                            matched_schema_names=matched_schema_names
                         )
                     else:
                         # Single schema mode - use one schema for all pages
@@ -268,7 +350,7 @@ with tab1:
             timing_data,
             column_config=column_config,
             hide_index=True,
-            use_container_width=True
+            width="stretch"
         )
         
         st.divider()
@@ -421,11 +503,11 @@ with tab2:
                 st.divider()
                 col1, col2, col3 = st.columns(3)
                 with col1:
-                    save_button = st.form_submit_button("💾 Save Changes", use_container_width=True)
+                    save_button = st.form_submit_button("💾 Save Changes", width="stretch")
                 with col2:
-                    reset_button = st.form_submit_button("� Reset to Extracted", use_container_width=True)
+                    reset_button = st.form_submit_button("� Reset to Extracted", width="stretch")
                 with col3:
-                    approve_button = st.form_submit_button("✅ Approve & Finalize", type="primary", use_container_width=True)
+                    approve_button = st.form_submit_button("✅ Approve & Finalize", type="primary", width="stretch")
                 
                 if save_button:
                     # Update all edited fields
@@ -481,7 +563,7 @@ with tab3:
             if v and str(v).strip()  # Only show filled fields
         ]
         
-        st.dataframe(preview_data, use_container_width=True, height=400)
+        st.dataframe(preview_data, width="stretch", height=400)
         
         st.divider()
         
@@ -506,7 +588,7 @@ with tab3:
                     st.write("Click the button to append this row to the existing target.csv file.")
                 
                 with col2:
-                    if st.button("➕ Append to CSV", type="primary", use_container_width=True):
+                    if st.button("➕ Append to CSV", type="primary", width="stretch"):
                         try:
                             # Prepare data row in correct order
                             data_row = [st.session_state.edited_data.get(prop, "") for prop in property_names]
@@ -553,7 +635,7 @@ with tab3:
                 data=csv_string,
                 file_name="extracted_form_data.csv",
                 mime="text/csv",
-                use_container_width=True
+                width="stretch"
             )
         
         with col2:
@@ -569,7 +651,7 @@ with tab3:
                 data=json.dumps(json_output, indent=2),
                 file_name="extracted_form_data.json",
                 mime="application/json",
-                use_container_width=True
+                width="stretch"
             )
         
         with col3:
@@ -581,7 +663,7 @@ with tab3:
                 data=json.dumps(mapping_config, indent=2),
                 file_name="field_mapping_config.json",
                 mime="application/json",
-                use_container_width=True
+                width="stretch"
             )
     
     elif st.session_state.extraction_results:
