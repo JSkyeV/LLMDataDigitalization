@@ -354,42 +354,46 @@ with tab2:
                 # Track edited fields
                 edited_fields = {}
                 
-                # Group fields dynamically by category (based on first word)
-                categories = {}
+                # Group fields by category based on field_mapping_config.json order
+                # Define category order and field patterns matching the CSV structure
+                category_definitions = [
+                    ("01. Basic Information", ["Title", "Gender", "First Name", "Last Name", "Middle Name", "Suffix", "Birth Date", "Goes By"]),
+                    ("02. Contact Information", ["Social Security Number", "Medicaid Number", "E-mail", "Phone Number"]),
+                    ("03. Demographics", ["Race", "Ethnicity", "Tribe", "Class Membership"]),
+                    ("04. Residential Address", ["Attention or in care of (Residential", "Residential Street", "Residential City", "Residential State", "Residential Zip", "Residential Country", "Primary Phone (Residential)", "Secondary Phone (Residential)", "Additional Phone (Residential)", "Residential County"]),
+                    ("05. Service County", ["Service County State", "Service County"]),
+                    ("06. Mailing Address", ["Attention or in care of (Mailing", "Mailing Street", "Mailing City", "Mailing State", "Mailing Zip", "Mailing Country", "Primary Phone (Mailing)", "Secondary Phone (Mailing)", "Additional Phone (Mailing)"]),
+                    ("07. Physical Characteristics", ["Height Feet", "Height Inches", "Weight Range", "Hair Color", "Eye Color"]),
+                    ("08. Language & Interpreter", ["Interpreter Needed", "Primary Oral Language", "Primary Written Language", "Secondary Oral Language", "Secondary Written Language"]),
+                    ("09. Personal Details", ["Religion", "Citizenship", "Marital Status", "Individual's Time Zone", "Living Arrangement"]),
+                    ("10. Birth Place", ["Birth Place Street", "Birth Place City", "Birth Place State", "Birth Place Zip", "Birth Place Country"]),
+                    ("11. Additional Details", ["Characteristics"]),
+                    ("12. Identification", ["ID Type", "ID Number", "Additional ID Type", "Additional ID Number"]),
+                    ("13. Disability Information", ["Developmental Disability", "Intellectual Disability"]),
+                    ("14. Medical Information", ["Blood Type", "Other Medical Information", "Emergency Orders"]),
+                    ("15. Care & Support", ["Adaptive Equipment", "Behavior Management", "Dietary Guidelines", "Eating Guidelines"]),
+                    ("16. Communication & Mobility", ["Communication Modality", "Communication Comments", "Mobility", "Supervision"]),
+                    ("17. Nutrition & Personal Care", ["Food Texture", "Liquid Consistency", "Toileting Status", "Bathing Status", "Mealtime Status"]),
+                    ("18. Administrative", ["Guardian of Self", "Referral Source", "Admission Date", "Program Form ID", "Program Enrollment Date"]),
+                ]
+                
+                # Build categories dict maintaining order
+                categories = {cat_name: [] for cat_name, _ in category_definitions}
+                categories["19. Other"] = []  # Catch-all for unmatched fields
+                
+                # Assign each field to its category
                 for prop in filtered_properties:
-                    # Determine category
-                    if any(x in prop for x in ["First Name", "Last Name", "Middle Name", "Title", "Gender", "Suffix", "Birth Date", "Goes By", "Social Security", "Medicaid"]):
-                        category = "Personal Information"
-                    elif any(x in prop for x in ["Race", "Ethnicity", "Tribe", "Class"]):
-                        category = "Demographics"
-                    elif "Residential" in prop:
-                        category = "Residential Address"
-                    elif "Mailing" in prop:
-                        category = "Mailing Address"
-                    elif "Service" in prop:
-                        category = "Service Information"
-                    elif any(x in prop for x in ["Height", "Weight", "Hair", "Eye"]):
-                        category = "Physical Characteristics"
-                    elif "Language" in prop or "Interpreter" in prop:
-                        category = "Language & Communication"
-                    elif "Birth Place" in prop:
-                        category = "Birth Place"
-                    elif any(x in prop for x in ["Religion", "Citizenship", "Marital", "Living", "Time Zone", "Characteristics"]):
-                        category = "Personal Details"
-                    elif any(x in prop for x in ["ID Type", "ID Number"]):
-                        category = "Identification"
-                    elif any(x in prop for x in ["Disability", "Blood", "Medical", "Emergency"]):
-                        category = "Medical Information"
-                    elif any(x in prop for x in ["Adaptive", "Behavior", "Dietary", "Eating", "Communication", "Mobility", "Supervision", "Food", "Liquid", "Toileting", "Bathing", "Mealtime"]):
-                        category = "Care & Support"
-                    elif any(x in prop for x in ["Guardian", "Referral", "Admission", "Program"]):
-                        category = "Administrative"
-                    else:
-                        category = "Other"
-                    
-                    if category not in categories:
-                        categories[category] = []
-                    categories[category].append(prop)
+                    assigned = False
+                    for cat_name, patterns in category_definitions:
+                        if any(pattern in prop for pattern in patterns):
+                            categories[cat_name].append(prop)
+                            assigned = True
+                            break
+                    if not assigned:
+                        categories["19. Other"].append(prop)
+                
+                # Remove empty categories
+                categories = {k: v for k, v in categories.items() if v}
                 
                 # Display fields by category
                 for category, fields in sorted(categories.items()):

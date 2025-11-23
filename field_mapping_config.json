@@ -6,8 +6,8 @@
   },
   {
     "PropertyName": "Gender",
-    "from": "${demographics.general.sex}",
-    "description": "TODO: Sex or GenderPreference? - Gender (Male/Female)"
+    "from": "${generalInfo.sex}",
+    "description": "Sex - Gender (Male/Female)"
   },
   {
     "PropertyName": "First Name",
@@ -46,8 +46,8 @@
   },
   {
     "PropertyName": "Medicaid Number",
-    "from": "${demographics.general.medicaid_id}",
-    "description": "Medicaid ID number"
+    "from": "${healthAndMedical.insurance[0].policy_number}",
+    "description": "Medicaid ID number (first insurance policy number)"
   },
   {
     "PropertyName": "E-mail",
@@ -86,7 +86,7 @@
   },
   {
     "PropertyName": "Residential Street1",
-    "from": "${generalInfo.main_address.street}",
+    "from": "${demographics.general.address.street}",
     "description": "Street address line 1"
   },
   {
@@ -96,27 +96,27 @@
   },
   {
     "PropertyName": "Residential City",
-    "from": "${generalInfo.main_address.city}",
+    "from": "${demographics.general.address.city}",
     "description": "City"
   },
   {
     "PropertyName": "Residential State",
-    "from": "${generalInfo.main_address.state}",
+    "from": "${demographics.general.address.state}",
     "description": "State (2-letter code)"
   },
   {
     "PropertyName": "Residential Zip",
-    "from": "${generalInfo.main_address.zip_code}",
+    "from": "${demographics.general.address.zip_code}",
     "description": "ZIP code"
   },
   {
     "PropertyName": "Residential Country",
-    "from": "${generalInfo.main_address.country}",
+    "from": "${demographics.general.address.country}",
     "description": "TODO: Missing - Country"
   },
   {
     "PropertyName": "Primary Phone (Residential)",
-    "from": "${generalInfo.primary_phone}",
+    "from": "${demographics.general.address.phone}",
     "description": "Primary residential phone"
   },
   {
@@ -131,12 +131,12 @@
   },
   {
     "PropertyName": "Residential County State",
-    "from": "${generalInfo.main_address.county_state}",
+    "from": "${demographics.general.address.county_state}",
     "description": "TODO: Missing - County state"
   },
   {
     "PropertyName": "Residential County",
-    "from": "${generalInfo.main_address.county}",
+    "from": "${demographics.general.address.county}",
     "description": "TODO: Missing - County name"
   },
   {
@@ -406,7 +406,7 @@
   },
   {
     "PropertyName": "Other Medical Information",
-    "from": "${medicalHistory.additional_diagnosis_medical_needs}",
+    "from": "${healthAndMedical.additional_diagnosis_medical_needs}",
     "description": "Other medical information"
   },
   {
@@ -416,7 +416,7 @@
   },
   {
     "PropertyName": "Adaptive Equipment",
-    "from": "${medicalHistory.adaptiveEquipmentAndFacilityAdaptations.adaptive_equipment_list}",
+    "from": "${detailedHealthAndSupportPlans.adaptiveEquipmentAndEnvironmentalAdaptations.description}",
     "description": "Adaptive equipment used"
   },
   {
@@ -426,22 +426,22 @@
   },
   {
     "PropertyName": "Dietary Guidelines",
-    "from": "${dietAndNutrition.special_dietary_requirements}",
+    "from": "${detailedHealthAndSupportPlans.nutritionAndDiet.diet_ordered}",
     "description": "Dietary restrictions/guidelines"
   },
   {
     "PropertyName": "Eating Guidelines",
-    "from": "${dietAndNutrition.eating_drinking_practices}",
+    "from": "${feeding.assistance_supervision_description}",
     "description": "Eating assistance guidelines"
   },
   {
     "PropertyName": "Communication Modality",
-    "from": "${medicalHistory.communication.communication_type}",
+    "from": "${communicationAndSocialLife.easiest_expression_methods.methods}",
     "description": "Communication method"
   },
   {
     "PropertyName": "Communication Modality Other",
-    "from": "${medicalHistory.communication.communication_other_specify}",
+    "from": "${communicationAndSocialLife.easiest_expression_methods.other_description}",
     "description": "Other communication modality"
   },
   {
@@ -496,17 +496,17 @@
   },
   {
     "PropertyName": "Bathing Status",
-    "from": "${medicalHistory.groomingPersonalCare.bathing_statspecial_instructions_bathingus}",
+    "from": "${personalCareMotorCoordination.grooming_personal_care.supervision}",
     "description": "Bathing assistance needs"
   },
   {
     "PropertyName": "Mealtime Status",
-    "from": "${medicalHistory.nutritionalNeeds.mealtime_assistance_list}",
+    "from": "${feeding.eating_ability}",
     "description": "Mealtime assistance needs"
   },
   {
     "PropertyName": "Guardian of Self",
-    "from": "${guardianFamilyInformation.guardian.guardian_of_self}",
+    "from": "${guardianFamilyInformation.guardian.guardian_type}",
     "description": "Guardian status"
   },
   {
