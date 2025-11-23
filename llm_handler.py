@@ -152,19 +152,13 @@ Schema structure:
 
 EXTRACTION RULES:
 1. Read ALL handwritten and printed text on this page
-2. Extract COMPLETE values (full names like "John Michael Smith", not just "J")
-3. Extract COMPLETE addresses (like "123 Main Street", not just "1")
-4. Extract COMPLETE phone numbers (like "555-123-4567", not just "5")
-5. Extract COMPLETE dates (like "01/15/1980", not just "1")
+2. Extract COMPLETE values
+3. Extract COMPLETE addresses
+4. Extract COMPLETE phone numbers
+5. Extract COMPLETE dates
 6. For checkboxes: only include checked items in arrays
 7. If a field is blank/empty, omit it entirely from the JSON
 8. Match extracted text to the schema field names
-
-EXAMPLES OF GOOD EXTRACTION:
-- Name: "John Michael Doe" (NOT "J" or "JMD")
-- Address: "123 Main Street" (NOT "1" or "123")
-- Phone: "555-123-4567" (NOT "5")
-- Date: "01/15/1980" (NOT "01" or "1980")
 
 {page_prompt}
 
@@ -184,7 +178,7 @@ CRITICAL: Return ONLY valid JSON with the extracted data."""
                 ],
                 options={
                     'temperature': 0.2,  # Slightly higher for better text generation
-                    'num_predict': 8192,  # Increased max tokens for complete extraction
+                    'num_predict': 15000,  # Increased max tokens for complete extraction
                 }
             )
             
