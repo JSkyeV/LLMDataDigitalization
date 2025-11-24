@@ -1,0 +1,532 @@
+[
+  {
+    "PropertyName": "Title",
+    "from": "${generalInfo.title}",
+    "description": "TODO: Title (Mr., Mrs., Ms., Dr., etc.) - Not in main schema"
+  },
+  {
+    "PropertyName": "Gender",
+    "from": "${generalInfo.sex}",
+    "description": "Sex - Gender (Male/Female)"
+  },
+  {
+    "PropertyName": "First Name",
+    "from": "${generalInfo.prospective_member_name.split()[0]}",
+    "description": "Extract first word as first name"
+  },
+  {
+    "PropertyName": "Last Name",
+    "from": "${generalInfo.prospective_member_name.split()[-1]}",
+    "description": "Extract last word as last name"
+  },
+  {
+    "PropertyName": "Middle Name",
+    "from": "${' '.join(generalInfo.prospective_member_name.split()[1:-1])}",
+    "description": "Extract middle words from full name (all words between first and last)"
+  },
+  {
+    "PropertyName": "Suffix",
+    "from": "${generalInfo.suffix}",
+    "description": "TODO: Suffix (Jr., Sr., III, etc.) - Not in schema"
+  },
+  {
+    "PropertyName": "Birth Date",
+    "from": "${generalInfo.date_of_birth}",
+    "description": "Date of birth (MM/DD/YYYY)"
+  },
+  {
+    "PropertyName": "Goes By",
+    "from": "${generalInfo.nickname}",
+    "description": "TODO: Missing - Preferred name or nickname"
+  },
+  {
+    "PropertyName": "Social Security Number",
+    "from": "${generalInfo.ssn}",
+    "description": "TODO: Missing - SSN (XXX-XX-XXXX) - Not explicitly in schema"
+  },
+  {
+    "PropertyName": "Medicaid Number",
+    "from": "${healthAndMedical.insurance[0].policy_number}",
+    "description": "Medicaid ID number (first insurance policy number)"
+  },
+  {
+    "PropertyName": "E-mail",
+    "from": "${generalInfo.email}",
+    "description": "Email address"
+  },
+  {
+    "PropertyName": "Phone Number",
+    "from": "${generalInfo.primary_phone}",
+    "description": "Primary phone number"
+  },
+  {
+    "PropertyName": "Race",
+    "from": "${demographics.general.race}",
+    "description": "Race/ethnicity category (array in schema)"
+  },
+  {
+    "PropertyName": "Ethnicity",
+    "from": "${demographics.general.ethnicity}",
+    "description": "Ethnic background (Hispanic/Non-Hispanic)"
+  },
+  {
+    "PropertyName": "Tribe",
+    "from": "${demographics.tribe}",
+    "description": "TODO: Missing - Tribal affiliation (if applicable)"
+  },
+  {
+    "PropertyName": "Class Membership",
+    "from": "${demographics.class_membership}",
+    "description": "TODO: Missing - Class membership category"
+  },
+  {
+    "PropertyName": "Attention or in care of (Residential Address)",
+    "from": "${residentialAddress.attention}",
+    "description": "TODO: Missing - C/O or attention line"
+  },
+  {
+    "PropertyName": "Residential Street1",
+    "from": "${demographics.general.address.street}",
+    "description": "Street address line 1"
+  },
+  {
+    "PropertyName": "Residential Street2",
+    "from": "${generalInfo.main_address.street2}",
+    "description": "TODO: Missing - Street address line 2 (apt, suite, etc.)"
+  },
+  {
+    "PropertyName": "Residential City",
+    "from": "${demographics.general.address.city}",
+    "description": "City"
+  },
+  {
+    "PropertyName": "Residential State",
+    "from": "${demographics.general.address.state}",
+    "description": "State (2-letter code)"
+  },
+  {
+    "PropertyName": "Residential Zip",
+    "from": "${demographics.general.address.zip_code}",
+    "description": "ZIP code"
+  },
+  {
+    "PropertyName": "Residential Country",
+    "from": "${demographics.general.address.country}",
+    "description": "TODO: Missing - Country"
+  },
+  {
+    "PropertyName": "Primary Phone (Residential)",
+    "from": "${demographics.general.address.phone}",
+    "description": "Primary residential phone"
+  },
+  {
+    "PropertyName": "Secondary Phone (Residential)",
+    "from": "${generalInfo.secondary_phone}",
+    "description": "TODO: Missing - Secondary residential phone"
+  },
+  {
+    "PropertyName": "Additional Phone (Residential)",
+    "from": "${generalInfo.additional_phone}",
+    "description": "TODO: Missing - Additional residential phone"
+  },
+  {
+    "PropertyName": "Residential County State",
+    "from": "${demographics.general.address.county_state}",
+    "description": "TODO: Missing - County state"
+  },
+  {
+    "PropertyName": "Residential County",
+    "from": "${demographics.general.address.county}",
+    "description": "TODO: Missing - County name"
+  },
+  {
+    "PropertyName": "Service County State",
+    "from": "${serviceInfo.county_state}",
+    "description": "TODO: Missing - Service county state"
+  },
+  {
+    "PropertyName": "Service County",
+    "from": "${serviceInfo.county}",
+    "description": "TODO: Missing - Service county name"
+  },
+  {
+    "PropertyName": "Attention or in care of (Mailing Address)",
+    "from": "${mailingAddress.attention}",
+    "description": "TODO: Missing - C/O or attention line"
+  },
+  {
+    "PropertyName": "Mailing Street1",
+    "from": "${generalInfo.mailing_address.street}",
+    "description": "Mailing street address line 1"
+  },
+  {
+    "PropertyName": "Mailing Street2",
+    "from": "${generalInfo.mailing_address.street2}",
+    "description": "Mailing street address line 2"
+  },
+  {
+    "PropertyName": "Mailing City",
+    "from": "${generalInfo.mailing_address.city}",
+    "description": "Mailing city"
+  },
+  {
+    "PropertyName": "Mailing State",
+    "from": "${generalInfo.mailing_address.state}",
+    "description": "Mailing state"
+  },
+  {
+    "PropertyName": "Mailing Zip",
+    "from": "${generalInfo.mailing_address.zip_code}",
+    "description": "Mailing ZIP code"
+  },
+  {
+    "PropertyName": "Mailing Country",
+    "from": "${generalInfo.mailing_address.country}",
+    "description": "TODO: Missing - Mailing country"
+  },
+  {
+    "PropertyName": "Primary Phone (Mailing)",
+    "from": "${generalInfo.mailing_address.primary_phone}",
+    "description": "TODO: Missing - Primary mailing phone"
+  },
+  {
+    "PropertyName": "Secondary Phone (Mailing)",
+    "from": "${generalInfo.mailing_address.secondary_phone}",
+    "description": "TODO: Missing - Secondary mailing phone"
+  },
+  {
+    "PropertyName": "Additional Phone (Mailing)",
+    "from": "${generalInfo.mailing_address.additional_phone}",
+    "description": "TODO: Missing - Additional mailing phone"
+  },
+  {
+    "PropertyName": "Height Feet",
+    "from": "${healthAndMedical.height}",
+    "description": "Height in feet (stored as single field in schema)"
+  },
+  {
+    "PropertyName": "Height Inches",
+    "from": "${healthAndMedical.height_inches}",
+    "description": "TODO: not separate in schema - Height in inches"
+  },
+  {
+    "PropertyName": "Weight Range From (lb)",
+    "from": "${healthAndMedical.weight}",
+    "description": "TODO: not separate in schema - Weight in pounds"
+  },
+  {
+    "PropertyName": "Weight Range To (lb)",
+    "from": "${healthAndMedical.weight_to}",
+    "description": "TODO: not separate in schema - Weight in pounds (to)"
+  },
+  {
+    "PropertyName": "Hair Color",
+    "from": "${demographics.general.hair_color}",
+    "description": "TODO: Missing - Hair color"
+  },
+  {
+    "PropertyName": "Hair Color Other",
+    "from": "${demographics.general.hair_color_other}",
+    "description": "TODO: Missing - Other hair color description"
+  },
+  {
+    "PropertyName": "Eye Color",
+    "from": "${demographics.general.eye_color}",
+    "description": "TODO: Missing - Eye color"
+  },
+  {
+    "PropertyName": "Eye Color Other",
+    "from": "${demographics.general.eye_color_other}",
+    "description": "TODO: Missing - Other eye color description"
+  },
+  {
+    "PropertyName": "Interpreter Needed",
+    "from": "${communicationAndSocialLife.interpreter_needed}",
+    "description": "TODO: Missing - Whether interpreter is needed (Yes/No)"
+  },
+  {
+    "PropertyName": "Primary Oral Language",
+    "from": "${communicationAndSocialLife.primary_oral_language}",
+    "description": "TODO: Missing - Primary spoken language"
+  },
+  {
+    "PropertyName": "Primary Oral Language Other",
+    "from": "${communicationAndSocialLife.primary_oral_language_other}",
+    "description": "Other primary oral language"
+  },
+  {
+    "PropertyName": "Primary Written Language",
+    "from": "${communicationAndSocialLife.primary_written_language}",
+    "description": "TODO: Missing - Primary written language"
+  },
+  {
+    "PropertyName": "Primary Written Language Other",
+    "from": "${communicationAndSocialLife.primary_written_language_other}",
+    "description": "TODO: Missing - Other primary written language"
+  },
+  {
+    "PropertyName": "Secondary Oral Language",
+    "from": "${communicationAndSocialLife.secondary_oral_language}",
+    "description": "TODO: Missing - Secondary spoken language"
+  },
+  {
+    "PropertyName": "Secondary Oral Language Other",
+    "from": "${communicationAndSocialLife.secondary_oral_language_other}",
+    "description": "TODO: Missing - Other secondary oral language"
+  },
+  {
+    "PropertyName": "Secondary Written Language",
+    "from": "${communicationAndSocialLife.secondary_written_language}",
+    "description": "TODO: Missing - Secondary written language"
+  },
+  {
+    "PropertyName": "Secondary Written Language Other",
+    "from": "${communicationAndSocialLife.secondary_written_language_other}",
+    "description": "TODO: Missing - Other secondary written language"
+  },
+  {
+    "PropertyName": "Religion",
+    "from": "${demographics.general.religion}",
+    "description": "TODO: Missing - Religious affiliation"
+  },
+  {
+    "PropertyName": "Religion Other",
+    "from": "${demographics.general.religion_other}",
+    "description": "TODO: Missing - Other religion description"
+  },
+  {
+    "PropertyName": "Citizenship",
+    "from": "${demographics.general.citizenship}",
+    "description": "TODO: Missing - Citizenship country (not explicitly in schema)"
+  },
+  {
+    "PropertyName": "Citizenship Other",
+    "from": "${demographics.general.citizenship_other}",
+    "description": "TODO: Missing - Other citizenship description"
+  },
+  {
+    "PropertyName": "Citizenship Status",
+    "from": "${demographics.general.citizenship_status}",
+    "description": "TODO: Missing - Citizenship status (not explicitly in schema)"
+  },
+  {
+    "PropertyName": "Citizenship Status Other",
+    "from": "${demographics.general.citizenship_status_other}",
+    "description": "TODO: Missing - Other citizenship status"
+  },
+  {
+    "PropertyName": "Marital Status",
+    "from": "${demographics.general.marital_status}",
+    "description": "TODO: Missing - Marital status (not explicitly in schema)"
+  },
+  {
+    "PropertyName": "Marital Status Date",
+    "from": "${demographics.general.marital_status_date}",
+    "description": "TODO: Missing - Date of marital status change"
+  },
+  {
+    "PropertyName": "Individual's Time Zone",
+    "from": "${generalInfo.time_zone}",
+    "description": "TODO: Missing - Time zone (not in schema)"
+  },
+  {
+    "PropertyName": "Living Arrangement",
+    "from": "${demographics.household.residential_setting}",
+    "description": "Current living arrangement"
+  },
+  {
+    "PropertyName": "Birth Place Street1",
+    "from": "${birthPlace.street1}",
+    "description": "TODO: Missing - Birth place street address"
+  },
+  {
+    "PropertyName": "Birth Place Street2",
+    "from": "${birthPlace.street2}",
+    "description": "TODO: Missing - Birth place address line 2"
+  },
+  {
+    "PropertyName": "Birth Place City",
+    "from": "${birthPlace.city}",
+    "description": "TODO: Missing - Birth place city"
+  },
+  {
+    "PropertyName": "Birth Place State",
+    "from": "${birthPlace.state}",
+    "description": "TODO: Missing - Birth place state"
+  },
+  {
+    "PropertyName": "Birth Place Zip",
+    "from": "${birthPlace.zip}",
+    "description": "TODO: Missing - Birth place ZIP"
+  },
+  {
+    "PropertyName": "Birth Place Country",
+    "from": "${birthPlace.country}",
+    "description": "TODO: Missing - Birth place country"
+  },
+  {
+    "PropertyName": "Characteristics",
+    "from": "${personalInfo.characteristics}",
+    "description": "TODO: Missing - Personal characteristics"
+  },
+  {
+    "PropertyName": "ID Type",
+    "from": "${identification.id_type}",
+    "description": "TODO: Configuration Logic needed"
+  },
+  {
+    "PropertyName": "ID Number",
+    "from": "${identification.id_number}",
+    "description": "TODO: Configuration Logic needed"
+  },
+  {
+    "PropertyName": "Additional ID Type",
+    "from": "${identification.additional_id_type}",
+    "description": "TODO: Configuration Logic needed"
+  },
+  {
+    "PropertyName": "Additional ID Number",
+    "from": "${identification.additional_id_number}",
+    "description": "TODO: Configuration Logic needed"
+  },
+  {
+    "PropertyName": "Developmental Disability",
+    "from": "${demographics.disability.developmental_disability}",
+    "description": "TODO: VERIFY - Developmental disability status"
+  },
+  {
+    "PropertyName": "Intellectual Disability",
+    "from": "${demographics.disability.intellectual_disability}",
+    "description": "TODO: VERIFY - Intellectual disability status"
+  },
+  {
+    "PropertyName": "Blood Type",
+    "from": "${healthAndMedical.blood_type}",
+    "description": "TODO: Missing - Blood type (not explicitly in schema)"
+  },
+  {
+    "PropertyName": "Other Medical Information",
+    "from": "${healthAndMedical.additional_diagnosis_medical_needs}",
+    "description": "Other medical information"
+  },
+  {
+    "PropertyName": "Emergency Orders",
+    "from": "${healthAndMedical.emergency_orders}",
+    "description": "TODO: Missing - Emergency medical orders"
+  },
+  {
+    "PropertyName": "Adaptive Equipment",
+    "from": "${detailedHealthAndSupportPlans.adaptiveEquipmentAndEnvironmentalAdaptations.description}",
+    "description": "Adaptive equipment used"
+  },
+  {
+    "PropertyName": "Behavior Management",
+    "from": "${behaviorAndPersonality.behavior_management_plan}",
+    "description": "Behavior management needs"
+  },
+  {
+    "PropertyName": "Dietary Guidelines",
+    "from": "${detailedHealthAndSupportPlans.nutritionAndDiet.diet_ordered}",
+    "description": "Dietary restrictions/guidelines"
+  },
+  {
+    "PropertyName": "Eating Guidelines",
+    "from": "${feeding.assistance_supervision_description}",
+    "description": "Eating assistance guidelines"
+  },
+  {
+    "PropertyName": "Communication Modality",
+    "from": "${communicationAndSocialLife.easiest_expression_methods.methods}",
+    "description": "Communication method"
+  },
+  {
+    "PropertyName": "Communication Modality Other",
+    "from": "${communicationAndSocialLife.easiest_expression_methods.other_description}",
+    "description": "Other communication modality"
+  },
+  {
+    "PropertyName": "Communication Comments",
+    "from": "${communicationAndSocialLife.communication_comments}",
+    "description": "TODO: Missing - Communication notes"
+  },
+  {
+    "PropertyName": "Mobility",
+    "from": "${mobility.mobility_status}",
+    "description": "Mobility status"
+  },
+  {
+    "PropertyName": "Mobility Other",
+    "from": "${mobility.mobility_other}",
+    "description": "TODO: Missing - Other mobility description"
+  },
+  {
+    "PropertyName": "Mobility Comments",
+    "from": "${mobility.mobility_comments}",
+    "description": "TODO: Missing - Mobility notes"
+  },
+  {
+    "PropertyName": "Supervision",
+    "from": "${behaviorAndPersonality.supervision}",
+    "description": "TODO: Missing - Supervision level needed"
+  },
+  {
+    "PropertyName": "Supervision Other",
+    "from": "${behaviorAndPersonality.supervision_other}",
+    "description": "TODO: Missing - Other supervision description"
+  },
+  {
+    "PropertyName": "Supervision Comments",
+    "from": "${behaviorAndPersonality.supervision_comments}",
+    "description": "TODO: Missing - Supervision notes"
+  },
+  {
+    "PropertyName": "Food Texture",
+    "from": "${dietAndNutrition.food_texture}",
+    "description": "TODO: Missing - Food texture requirements"
+  },
+  {
+    "PropertyName": "Liquid Consistency",
+    "from": "${dietAndNutrition.liquid_consistency}",
+    "description": "TODO: Missing - Liquid consistency requirements"
+  },
+  {
+    "PropertyName": "Toileting Status",
+    "from": "${personalCareMotorCoordination.toileting_assistance_description}",
+    "description": "TODO: Missing - Toileting assistance needs"
+  },
+  {
+    "PropertyName": "Bathing Status",
+    "from": "${personalCareMotorCoordination.grooming_personal_care.supervision}",
+    "description": "Bathing assistance needs"
+  },
+  {
+    "PropertyName": "Mealtime Status",
+    "from": "${feeding.eating_ability}",
+    "description": "Mealtime assistance needs"
+  },
+  {
+    "PropertyName": "Guardian of Self",
+    "from": "${guardianFamilyInformation.guardian.guardian_type}",
+    "description": "Guardian status"
+  },
+  {
+    "PropertyName": "Referral Source",
+    "from": "${generalInfo.referral_source}",
+    "description": "Referral source"
+  },
+  {
+    "PropertyName": "Admission Date",
+    "from": "${services.office_use_only.admission_date}",
+    "description": "TODO: Missing - Admission date"
+  },
+  {
+    "PropertyName": "Program Form ID",
+    "from": "${services.office_use_only.program_form_id}",
+    "description": "TODO: Missing - Program form ID"
+  },
+  {
+    "PropertyName": "Program Enrollment Date",
+    "from": "${services.office_use_only.program_enrollment_date}",
+    "description": "TODO: Missing - Program enrollment date"
+  }
+]

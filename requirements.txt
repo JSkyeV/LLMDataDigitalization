@@ -1,5 +1,5 @@
 streamlit>=1.36.0
-google-generativeai>=0.8.2
+requests>=2.31.0
 python-dotenv>=1.0.1
 pdf2image>=1.17.0
 pillow>=10.3.0
@@ -7,3 +7,4 @@ json-repair>=0.10.0
 PyPDF2>=3.0.1
 pathlib
 argparse
+ollama>=0.1.0

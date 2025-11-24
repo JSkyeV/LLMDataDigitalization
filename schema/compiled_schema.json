@@ -1,7 +1,5 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
-  "title": "Consolidated Member Application and Support Plan Schema",
   "properties": {
     "generalInfo": {
       "type": "object",
@@ -31,11 +29,6 @@
         "referral_source": {
           "type": "string",
           "description": "How did you hear about us?"
-        },
-        "sex": {
-          "type": "string",
-          "enum": ["Male", "Female"],
-          "description": "Sex of the applicant."
         }
       }
     },
@@ -85,7 +78,59 @@
         },
         "transportation": {
           "type": "object",
-          "description": "Transportation details (properties cut off in source schema)"
+          "properties": {
+            "am": { "type": "boolean", "description": "Transportation AM" },
+            "pm": { "type": "boolean", "description": "Transportation PM" }
+          }
+        },
+        "office_use_only": {
+          "type": "object",
+          "properties": {
+            "location_site": { "type": "string" },
+            "start_date": { "type": "string" },
+            "service_codes": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["DTA", "CBE", "GSE", "ESA", "ISE", "DTT", "DTS", "RSP", "TRA", "TRE"]
+              }
+            }
+          },
+          "description": "Gray area for office use only"
+        }
+      }
+    },
+    "emergencyContacts": {
+      "type": "object",
+      "properties": {
+        "primary_contact": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "relationship": { "type": "string" },
+            "home": { "type": "string" },
+            "work_cell": { "type": "string" }
+          },
+          "description": "Emergency Contact, Primary"
+        },
+        "secondary_contact": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "relationship": { "type": "string" },
+            "home": { "type": "string" },
+            "work_cell": { "type": "string" }
+          },
+          "description": "Emergency Contact, Secondary"
+        },
+        "residential_manager": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "residence_phone": { "type": "string" },
+            "manager_work_cell": { "type": "string" }
+          },
+          "description": "Residential Manager (if applicable)"
         }
       }
     },
@@ -99,9 +144,9 @@
               "type": "array",
               "items": {
                 "type": "string",
-                "enum": ["Biological/Adoptive Parent", "Legal Guardian", "Conservator", "Other (Specify)"]
-              },
-              "description": "Checkboxes on the form; select one."
+                "enum": ["Legal Guardian", "Conservator", "Self-Guardian"],
+                "description": "Checkboxes on the form; select one."
+              }
             },
             "name": { "type": "string" },
             "relationship": { "type": "string" },
@@ -125,9 +170,9 @@
               "type": "array",
               "items": {
                 "type": "string",
-                "enum": ["Same as Guardian", "Co-Guardian/Parent"]
-              },
-              "description": "Checkboxes on the form; select one."
+                "enum": ["Same as Guardian", "Co-Guardian/Parent"],
+                "description": "Checkboxes on the form; select one."
+              }
             },
             "name": { "type": "string" },
             "relationship": { "type": "string" },
@@ -139,29 +184,117 @@
                 "state": { "type": "string" },
                 "zip_code": { "type": "string" }
               }
-            }
+            },
+            "email": { "type": "string" },
+            "phone": { "type": "string" }
           }
-        },
-        "emergency_contact_secondary": {
-          "type": "object",
-          "properties": {
-            "name": { "type": "string" },
-            "relationship": { "type": "string" },
-            "home": { "type": "string" },
-            "work_cell": { "type": "string" }
-          },
-          "description": "Emergency Contact, Secondary"
-        },
-        "residential_manager": {
-          "type": "object",
-          "properties": {
-            "name": { "type": "string" },
-            "residence_phone": { "type": "string" },
-            "manager_work_cell": { "type": "string" }
-          },
-          "description": "Residential Manager (if applicable)"
         }
       }
+    },
+    "healthAndMedical": {
+      "type": "object",
+      "properties": {
+        "additional_diagnosis_medical_needs": {
+          "type": "string",
+          "description": "Additional Relevant Diagnosis/Medical Needs"
+        },
+        "insurance": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "insurance_company": { "type": "string" },
+              "policy_number": { "type": "string" }
+            }
+          },
+          "description": "Supports multiple insurance entries"
+        },
+        "height": { "type": "string" },
+        "weight": { "type": "string" },
+        "seizures": {
+          "type": "boolean",
+          "description": "Checkboxes on the form; select one."
+        },
+        "chronic_conditions": {
+          "type": "string",
+          "description": "Chronic or Reoccurring Medical Conditions"
+        },
+        "special_health_instructions": {
+          "type": "string",
+          "description": "Special Health-Related Instructions"
+        }
+      }
+    },
+    "mobility": {
+      "type": "object",
+      "properties": {
+        "mobility_status": {
+          "type": "string",
+          "enum": ["Fully Ambulatory", "Independent with Wheelchair", "Needs Full Assistance"],
+          "description": "Checkboxes on the form; select one."
+        },
+        "walks_with_assistance": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["Person", "Equipment"]
+          }
+        },
+        "assistance_description": {
+          "type": "string",
+          "description": "Additional details if assistance is required"
+        }
+      }
+    },
+    "dietAndNutrition": {
+      "type": "object",
+      "properties": {
+        "special_dietary_requirements": { "type": "string" },
+        "allergies": {
+          "type": "string",
+          "description": "Foods, medications, or other allergies"
+        },
+        "eating_drinking_practices": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["Independent (All Foods)", "Soft Foods Only", "With Adaptive Equipment", "Requires Assistance and/or Supervision"]
+          },
+          "description": "Checkboxes on the form; select all that apply."
+        },
+        "adaptive_equipment_description": { "type": "string" },
+        "assistance_supervision_description": { "type": "string" }
+      }
+    },
+    "personalCareMotorCoordination": {
+      "type": "object",
+      "properties": {
+        "fine_motor_impairments": {
+          "type": "string",
+          "description": "Include options for assistance (hand over hand, modified utensils, etc.)"
+        },
+        "toileting_menstrual_care": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["Independent", "Occasional or Regular Reminders", "Requires Assistance"]
+          }
+        },
+        "toileting_assistance_description": { "type": "string" }
+      }
+    },
+    "prescription_medication": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "medication_name": { "type": "string" },
+          "time_administered": { "type": "string" },
+          "dosage": { "type": "string" }
+        },
+        "description": "Table in form each row represents one entry"
+      },
+      "description": "Supports multiple medication entries"
     },
     "demographics": {
       "type": "object",
@@ -194,54 +327,21 @@
               "type": "string",
               "enum": ["Hispanic", "Non-Hispanic"],
               "description": "Checkboxes on the form"
-            },
-            "language": {
-              "type": "string"
             }
           }
         },
-        "militaryStatus": {
+        "disability": {
           "type": "object",
           "properties": {
-            "military_status": {
-              "type": "string",
-              "enum": ["Veteran", "Active Duty", "None"],
-              "description": "Checkboxes on the form"
-            },
-            "served_in_combat": { "type": "boolean" },
-            "branch": { "type": "string" },
-            "start_date": { "type": "string" },
-            "end_date": { "type": "string" },
-            "discharge_type": { "type": "string" }
-          }
-        },
-        "educationWork": {
-          "type": "object",
-          "properties": {
-            "highest_grade_completed": { "type": "integer" },
-            "currently_in_school": { "type": "boolean" },
-            "employed": { "type": "boolean" },
-            "employment_type": {
-              "type": "string",
-              "enum": ["Full Time", "Part Time", "Seasonal"]
-            },
-            "job_title": { "type": "string" },
-            "employer": { "type": "string" }
-          }
-        },
-        "disability_type": {
-          "type": "object",
-          "properties": {
-            "disabilities_receiving_services": {
+            "primary_diagnosis": { "type": "string" },
+            "secondary_diagnosis": { "type": "string" },
+            "disability_types": {
               "type": "array",
               "items": {
                 "type": "string",
-                "enum": ["Autism", "Cerebral Palsy", "Epilepsy", "Cognitive Impairment", "Developmental Disability (DD)", "DD Re: Work", "DD Re: Transportation", "No Disability", "Other"]
+                "enum": ["Physical Disability (PD)", "PD Re: Work", "PD Re: Transportation", "Developmental Disability (DD)", "DD Re: Work", "DD Re: Transportation", "No Disability", "Other"]
               },
               "description": "Checkboxes on the form; select all that apply."
-            },
-            "primary_disability_description": {
-              "type": "string"
             }
           }
         },
@@ -272,178 +372,6 @@
               "description": "TOTAL NUMBER OF INDIVIDUALS LIVING IN THE HOUSEHOLD INCLUDING PARTICIPANT"
             }
           }
-        }
-      }
-    },
-    "healthAndMedical": {
-      "type": "object",
-      "properties": {
-        "additional_diagnosis_medical_needs": {
-          "type": "string",
-          "description": "Additional Relevant Diagnosis/Medical Needs"
-        },
-        "insurance": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "insurance_company": { "type": "string" },
-              "policy_number": { "type": "string" }
-            }
-          },
-          "description": "Supports multiple insurance entries"
-        },
-        "height": { "type": "string" },
-        "weight": { "type": "string" },
-        "chronic_conditions": {
-          "type": "string",
-          "description": "Chronic or Reoccurring Medical Conditions"
-        },
-        "special_health_instructions": {
-          "type": "string",
-          "description": "Special Health-Related Instructions"
-        }
-      }
-    },
-    "seizureInformation": {
-      "type": "object",
-      "properties": {
-        "history_of_seizures": {
-          "type": "boolean",
-          "description": "Does the applicant have any history of seizures?; Checkboxes on the form."
-        },
-        "seizure_activity_past_5_years": {
-          "type": "boolean",
-          "description": "Has the applicant had any seizure activity in the past 5 years?; Checkboxes on the form."
-        },
-        "last_seizure_date": {
-          "type": "string",
-          "description": "When (month/year) of the last seizure?"
-        },
-        "seizure_control_with_medication": {
-          "type": "string",
-          "enum": ["Completely controlled", "Partially controlled", "Not controlled"],
-          "description": "Are the seizures currently being controlled with medication?; Checkboxes on the form."
-        },
-        "seizure_frequency": {
-          "type": "string",
-          "description": "How frequently the applicant has seizures (times per day, week, month, or year)?"
-        },
-        "seizure_duration_before_intervention": {
-          "type": "string",
-          "description": "How long can a seizure last before medical intervention becomes necessary?"
-        },
-        "antecedents_to_seizure": {
-          "type": "string",
-          "description": "Describe any antecedents to a seizure:"
-        },
-        "post_seizure_behavior_changes": {
-          "type": "string",
-          "description": "Is there any noticeable changes in behavior after a seizure (e.g. groggy, confused, irritable, etc)?"
-        },
-        "typical_seizure_presentation": {
-          "type": "string",
-          "description": "How does a seizure typically present itself? Please describe the physical characteristics, and the typical duration:"
-        },
-        "emergency_medical_interventions": {
-          "type": "string",
-          "description": "Describe medical interventions that are appropriate and available in an emergency (nerve stimulator, medication, length of seizure before calling paramedics, etc.)."
-        },
-        "other_seizure_info": {
-          "type": "string",
-          "description": "Please discuss any other information relating to seizures that is important for the individual's safety?"
-        }
-      }
-    },
-    "mobility": {
-      "type": "object",
-      "properties": {
-        "mobility_status": {
-          "type": "string",
-          "enum": ["Fully Ambulatory", "Independent with Wheelchair", "Needs Full Assistance"],
-          "description": "Checkboxes on the form; select one."
-        },
-        "walks_with_assistance": {
-          "type": "boolean"
-        },
-        "walks_assistance_type": {
-          "type": "string"
-        },
-        "wheelchair_usage": {
-          "type": "boolean"
-        },
-        "wheelchair_type": {
-          "type": "string"
-        },
-        "wheelchair_assistance": {
-          "type": "string"
-        },
-        "climbing_stairs": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "enum": ["Independent", "Independent with Railings", "Requires Supervision", "Requires Assistance"]
-          }
-        },
-        "transferring": {
-          "type": "string"
-        }
-      }
-    },
-    "feeding": {
-      "type": "object",
-      "properties": {
-        "eating_ability": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "enum": ["Independent (All Foods)", "Soft Foods Only", "With Adaptive Equipment", "Requires Assistance and/or Supervision"]
-          },
-          "description": "Checkboxes on the form; select all that apply."
-        },
-        "adaptive_equipment_description": { "type": "string" },
-        "assistance_supervision_description": { "type": "string" }
-      }
-    },
-    "personalCareMotorCoordination": {
-      "type": "object",
-      "properties": {
-        "fine_motor_impairments": {
-          "type": "string",
-          "description": "Include options for assistance (hand over hand, modified utensils, etc.)"
-        },
-        "toileting_menstrual_care": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "enum": ["Independent", "Occasional or Regular Reminders", "Requires Assistance"]
-          }
-        },
-        "toileting_assistance_description": { "type": "string" },
-        "other_healthcare_needs": {
-          "type": "string",
-          "description": "OTHER ADDITIONAL HEALTH CARE NEEDS/ROUTINES (i.e. tooth brushing, flossing, nail care, etc.): "
-        },
-        "grooming_personal_care": {
-          "type": "object",
-          "properties": {
-            "special_instructions_bathing": { "type": "boolean", "description": "SPECIAL INSTRUCTIONS FOR BATHING:" },
-            "methods": { "type": "string" },
-            "products": { "type": "string" },
-            "supervision": { "type": "string" },
-            "gender_preference": { "type": "string", "enum": ["Male", "Female", "No Preference"] }
-          }
-        }
-      }
-    },
-    "prescription_medication": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "medication_name": { "type": "string" },
-          "time_administered": { "type": "string" },
-          "dosage": { "type": "string" }
         }
       }
     },
@@ -500,23 +428,56 @@
         "currently_receives_therapies": {
           "type": "string",
           "description": "Does the applicant currently receive any therapies? If so, please briefly describe their current goals so we can help provide consistent standards for the applicant's communication while they're in program."
+        }
+      }
+    },
+    "seizureInformation": {
+      "type": "object",
+      "properties": {
+        "history_of_seizures": {
+          "type": "boolean",
+          "description": "Does the applicant have any history of seizures?; Checkboxes on the form."
         },
-        "expressive_communication_needs": {
-          "type": "object",
-          "properties": {
-            "express_wants_needs": {
-              "type": "boolean",
-              "description": "Can resident express wants and needs:"
-            },
-            "communication_type": {
-              "type": "string",
-              "description": "Type of Communication (i.e. verbal, sign, gestures, augmentative devices, etc.):"
-            },
-            "communication_steps": {
-              "type": "string",
-              "description": "If NO, steps to take to meet resident's needs:"
-            }
-          }
+        "seizure_activity_past_5_years": {
+          "type": "boolean",
+          "description": "Has the applicant had any seizure activity in the past 5 years?; Checkboxes on the form."
+        },
+        "last_seizure_date": {
+          "type": "string",
+          "description": "When (month/year) of the last seizure?"
+        },
+        "seizure_control_with_medication": {
+          "type": "string",
+          "enum": ["Completely controlled", "Partially controlled", "Not controlled"],
+          "description": "Are the seizures currently being controlled with medication?; Checkboxes on the form."
+        },
+        "seizure_frequency": {
+          "type": "string",
+          "description": "How frequently the applicant has seizures (times per day, week, month, or year)?"
+        },
+        "seizure_duration_before_intervention": {
+          "type": "string",
+          "description": "How long can a seizure last before medical intervention becomes necessary?"
+        },
+        "antecedents_to_seizure": {
+          "type": "string",
+          "description": "Describe any antecedents to a seizure:"
+        },
+        "post_seizure_behavior_changes": {
+          "type": "string",
+          "description": "Is there any noticeable changes in behavior after a seizure (e.g. groggy, confused, irritable, etc)?"
+        },
+        "typical_seizure_presentation": {
+          "type": "string",
+          "description": "How does a seizure typically present itself? Please describe the physical characteristics, and the typical duration:"
+        },
+        "emergency_medical_interventions": {
+          "type": "string",
+          "description": "Describe medical interventions that are appropriate and available in an emergency (nerve stimulator, medication, length of seizure before calling paramedics, etc.)."
+        },
+        "other_seizure_info": {
+          "type": "string",
+          "description": "Please discuss any other information relating to seizures that is important for the individual's safety?"
         }
       }
     },
@@ -600,23 +561,6 @@
         "enjoyable_activities": {
           "type": "string",
           "description": "What are some activities that the applicant enjoys, or that they might enjoy if given the opportunity? This might include participation in arts programs (like painting, photography, or theatre), regular physical exercise, volunteering in the community, or something that they've expressed interest in the past. Please be as specific as possible."
-        },
-        "behavioral_support": {
-          "type": "object",
-          "properties": {
-            "btp": {
-              "type": "boolean",
-              "description": "Is a Behavior Treatment Plan (BTP) in place?"
-            },
-            "btp_target_behaviors": {
-              "type": "string",
-              "description": "IF YES, TARGET BEHAVIORS:"
-            },
-            "other_interfering_behaviors": {
-              "type": "string",
-              "description": "Other interfering behaviors not requiring BTP:"
-            }
-          }
         }
       }
     },
@@ -655,23 +599,28 @@
               "Math skills are at a post high school level"
             ]
           },
-          "description": "What is the applicant's current math comprehension? Check all that apply:"
+          "description": "What is the applicant's current math comprehension?; Checkboxes on the form; select all that apply."
         },
-        "writing_comprehension": {
+        "money_management_skills": {
           "type": "array",
           "items": {
             "type": "string",
-            "enum": ["Writes a short essay or paragraph independently", "Writes short sentences", "Writes their name with assistance", "Writes their name independently", "Does not write"]
+            "enum": [
+              "Can count bills",
+              "Can count change",
+              "Understands how to make a purchase in a store using money or credit cards (may need assistance in counting the money)",
+              "Can plan a budget for at least one shopping trip"
+            ]
           },
-          "description": "What is the applicant's current writing comprehension? Check all that apply:"
+          "description": "Please check all of the following that describes the applicant's money management skills:"
         },
         "reading_comprehension": {
           "type": "array",
           "items": {
             "type": "string",
             "enum": [
-              "Identifies letters and sounds",
-              "Identifies letters, sounds, and identifies symbols (stop signs, restroom signs, etc.)",
+              "No ability to read",
+              "Reads sight words and identifies symbols (stop signs, restroom signs, etc.)",
               "Simple reading (around the level of a 3rd grader)",
               "Average reading (at least middle school or junior high level)",
               "Advanced reading (post high school level)"
@@ -704,17 +653,17 @@
             "other_description": {
               "type": "string",
               "description": "If 'Other' is selected, specify the skill."
-            }
-          },
-          "description": "Which academic and life skills would be most beneficial for the applicant to spend time improving? Check all that apply:"
+            },
+            "description": "Which academic and life skills would be most beneficial for the applicant to spend time improving? Check all that apply:"
+          }
         },
         "teaching_techniques": {
           "type": "array",
           "items": {
             "type": "string",
-            "enum": ["Hand over hand instruction", "Step by step spoken instructions", "Step by step written instructions", "Instructor modeling", "Peer modeling", "Self-Correction/Redirection"]
+            "enum": ["Hand over hand instruction", "Step by step spoken instructions", "Step by step written instructions", "Instructor modeling", "Peer modeling", "Self video modeling"]
           },
-          "description": "Which teaching techniques are the most effective when teaching the applicant new information? Select all that apply."
+          "description": "Which teaching techniques tend to be the most effective for the applicant when learning a new skill? Check all that apply:"
         },
         "instructional_steps_followed": {
           "type": "integer",
@@ -740,9 +689,9 @@
               "Work in one of our community enclaves",
               "Develop the skills to find a job independently",
               "Develop the skills to live independently"
-            ]
-          },
-          "description": "What would the applicant most like to get out of their time at The Opportunity Tree? Some of these goals may be achieved within a few weeks of being in the program, while others may take several years. Consider what some of those short term goals might be, as well as some long term goals (in the next 5-10 years); select all that apply."
+            ],
+            "description": "What would the applicant most like to get out of their time at The Opportunity Tree? Some of these goals may be achieved within a few weeks of being in the program, while others may take several years. Consider what some of those short term goals might be, as well as some long term goals (in the next 5-10 years); select all that apply."
+          }
         }
       }
     },
@@ -815,41 +764,85 @@
               "Chronic Nose Bleeds",
               "Diabetes",
               "Encephalitis",
-              "Gall Bladder",
+              "Gall Bladder Problems",
+              "Gastritis",
+              "Head Trauma/Injury",
+              "Heart Disease/Murmur",
+              "Hepatitis",
               "High Blood Pressure",
-              "Jaundice",
-              "Kidney Trouble",
+              "High Fever",
+              "Immune Suppressed Disorder",
+              "Liver Disorder",
               "Measles",
-              "Mononucleosis",
+              "Meningitis",
+              "Mental Illness",
+              "Migraine Headaches",
               "Mumps",
               "Pneumonia",
+              "Polio",
               "Rheumatic Fever",
-              "Thyroid",
+              "Substance Abuse/Addiction",
+              "Thyroid Disorder",
               "Tuberculosis",
-              "Whooping Cough",
-              "Other"
+              "Ulcers",
+              "Valley Fever",
+              "Venereal Disease"
             ]
           },
-          "description": "Individual Medical History: Check all that apply"
+          "description": "If the individual has or has had any of the following, please check as applicable; checkboxes on form select all that apply."
+        },
+        "immunizations": {
+          "type": "object",
+          "properties": {
+            "vaccine": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "enum": ["Tetanus", "Hepatitis B Screening", "DPT", "Measles", "PPD (TB Screening)", "Hepatitis B Vaccination", "Polio", "Other"]
+                  },
+                  "date": {
+                    "type": "string",
+                    "description": "Date of immunization if available"
+                  }
+                }
+              }
+            },
+            "other_description": {
+              "type": "string",
+              "description": "If 'Other' selected, specify the immunization name and date"
+            }
+          }
         },
         "allergies": {
           "type": "object",
           "properties": {
-            "drug_allergies": { "type": "boolean" },
-            "drug_allergies_specify": { "type": "string", "description": "If 'Yes', specify:" },
-            "food_allergies": { "type": "boolean" },
-            "food_allergies_specify": { "type": "string", "description": "If 'Yes', specify:" },
-            "other_allergies": { "type": "boolean" },
-            "other_allergies_specify": { "type": "string", "description": "If 'Yes', specify:" }
+            "has_allergies": {
+              "type": "boolean",
+              "description": "Checkboxes on form"
+            },
+            "allergy_details": {
+              "type": "string",
+              "description": "If 'Yes', specify:"
+            }
           },
           "description": "Allergies:"
         },
         "dental_history": {
           "type": "object",
           "properties": {
-            "gum_disease": { "type": "boolean" },
-            "orthodontic_appliances": { "type": "boolean" },
-            "orthodontic_appliances_description": { "type": "string", "description": "Specify details if orthodontic appliances are used" }
+            "gum_disease": {
+              "type": "boolean"
+            },
+            "orthodontic_appliances": {
+              "type": "boolean"
+            },
+            "orthodontic_appliances_description": {
+              "type": "string",
+              "description": "Specify details if orthodontic appliances are used"
+            }
           },
           "description": "Dental History:"
         },
@@ -877,120 +870,188 @@
         }
       }
     },
-    "detailedHealthAndSupportPlans": {
+    "surgeries_hospitalizations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "date": { "type": "string" },
+          "diagnosis": { "type": "string" },
+          "hospital": { "type": "string" },
+          "physician_or_therapist": { "type": "string" }
+        },
+        "description": "Table in form each row represents one entry"
+      },
+      "description": "Surgeries, Hospitalizations, Treatments, and Significant Accident Injuries:"
+    },
+    "applicant_info": {
       "type": "object",
-      "description": "Detailed plans and special instructions for health, medical monitoring, nutrition, and adaptive equipment.",
       "properties": {
-        "applicant_info_for_context": {
+        "name": { "type": "string", "description": "Resident's Name:" },
+        "sex": { "type": "string", "enum": ["Male", "Female"], "description": "Sex:" },
+        "date_of_birth": { "type": "string", "description": "Date of Birth:" }
+      }
+    },
+    "health_medical": {
+      "type": "object",
+      "properties": {
+        "allergies": {
           "type": "object",
           "properties": {
-            "name": { "type": "string", "description": "Resident's Name (Contextual):" },
-            "sex": { "type": "string", "enum": ["Male", "Female"], "description": "Sex (Contextual):" },
-            "date_of_birth": { "type": "string", "description": "Date of Birth (Contextual):" }
+            "allergy_name": { "type": "string", "description": "ALLERGIES (Specify):" },
+            "signs_and_symptoms": { "type": "string", "description": "Signs and Symptoms:" },
+            "steps_if_signs_appear": { "type": "string", "description": "Steps to be taken if signs appear:" }
           }
         },
-        "health_medical_emergency_plans": {
+        "medical_conditions": {
           "type": "object",
           "properties": {
-            "allergies": {
-              "type": "object",
-              "properties": {
-                "allergy_name": { "type": "string", "description": "ALLERGIES (Specify):" },
-                "signs_and_symptoms": { "type": "string", "description": "Signs and Symptoms:" },
-                "steps_if_signs_appear": { "type": "string", "description": "Steps to be taken if signs appear:" }
-              }
+            "condition_name": { "type": "string", "description": "MEDICAL CONDITIONS (Specify):" },
+            "signs_and_symptoms": { "type": "string", "description": "Signs and Symptoms:" },
+            "steps_if_signs_appear": { "type": "string", "description": "Steps to be taken if signs appear:" }
+          }
+        }
+      },
+      "description": "HEALTH/MEDICAL"
+    },
+    "nutritional_needs": {
+      "type": "object",
+      "properties": {
+        "food_preparation": { "type": "string", "enum": ["Regular", "Bite-size", "Puree", "Other"] },
+        "food_preparation_other": { "type": "string" },
+        "special_diet": { "type": "boolean" },
+        "special_diet_specify": { "type": "string", "description": "Specify:" },
+        "nutritional_supplements": { "type": "boolean" },
+        "nutritional_supplements_specify": { "type": "string", "description": "Specify:" },
+        "choke_or_gag_reflex": { "type": "boolean" },
+        "mealtime_assistance_required": { "type": "boolean", "description": "Assistance required during mealtimes (i.e. adapted utensils, positioning, etc.):" },
+        "mealtime_assistance_list": { "type": "string", "description": "List:" }
+      }
+    },
+    "special_fluid_intake_needs": {
+      "type": "object",
+      "properties": {
+        "can_request_fluids": { "type": "boolean", "description": "Can the resident obtain / request fluids?" },
+        "system_if_cannot_request": { "type": "string", "description": "If no, specify system to ensure adequate fluids are provided:" },
+        "nutritional_recommendations": { "type": "string", "description": "Specify medical / nutritional fluid recommendations (if applicable):" }
+      }
+    },
+    "special_fluid_intake_needs": {
+      "type": "object",
+      "properties": {
+        "can_request_fluids": { "type": "boolean", "description": "Can the resident obtain / request fluids?" },
+        "system_if_cannot_request": { "type": "string", "description": "If no, specify system to ensure adequate fluids are provided:" },
+        "nutritional_recommendations": { "type": "string", "description": "Specify medical / nutritional fluid recommendations (if applicable):" }
+      }
+    },
+    "adaptive_equipment_facility_adaptations": {
+      "type": "object",
+      "properties": {
+        "adaptive_equipment": {
+          "type": "boolean",
+          "description": "Adaptive Equipment (i.e. Glasses, hearing aids, wheelchairs, communication devices, etc.):"
+        },
+        "adaptive_equipment_list": { "type": "string", "description": "List:" },
+        "adaptive_equipment_instructions": { "type": "string", "description": "Special Instructions:" },
+        "protective_devices": { "type": "boolean", "description": "Protective Devices:" },
+        "protective_devices_list": { "type": "string", "description": "List:" },
+        "facility_adaptations": {
+          "type": "boolean",
+          "description": "Facility Adaptations (i.e. Ramps, Plexiglas windows, grab bars, etc.):"
+        },
+        "facility_adaptations_list": { "type": "string", "description": "List:" }
+      },
+      "description": "ADAPTIVE EQUIPMENT, PROTECTIVE DEVICES, AND FACILITY ADAPTATIONS"
+    },
+    "resident_name": { "type": "string", "description": "RESIDENT NAME:" },
+    "lifting_carrying_position": {
+      "type": "object",
+      "properties": {
+        "special_instructions_required": { "type": "boolean", "description": "SPECIAL INSTRUCTIONS FOR LIFTING, CARRYING, AND POSITIONING:" },
+        "instructions_specify": { "type": "string", "description": "If YES, specify:" },
+        "equipment": { "type": "string" },
+        "time_schedules": { "type": "string" }
+      }
+    },
+    "healthcare_issues": {
+      "type": "object",
+      "properties": {
+        "btp": { "type": "boolean" },
+        "btp_target_behaviors": { "type": "string", "description": "IF YES, TARGET BEHAVIORS:" },
+        "other_interfering_behaviors": { "type": "string", "description": "Other interfering behaviors not requiring BTP:" }
+      }
+    },
+    "other_healthcare_needs": {
+      "type": "string",
+      "description": "OTHER ADDITIONAL HEALTH CARE NEEDS/ROUTINES (i.e. tooth brushing, flossing, nail care, etc.): "
+    },
+    "grooming_personal_care": {
+      "type": "object",
+      "properties": {
+        "special_instructions_bathing": { "type": "boolean", "description": "SPECIAL INSTRUCTIONS FOR BATHING:" },
+        "methods": { "type": "string" },
+        "products": { "type": "string" },
+        "supervision": { "type": "string" },
+        "gender_preference": { "type": "string", "enum": ["Male", "Female", "No Preference"] }
+      }
+    },
+    "communication": {
+      "type": "object",
+      "properties": {
+        "express_wants_needs": {
+          "type": "boolean",
+          "description": "Can resident express wants and needs:"
+        },
+        "communication_type": {
+          "type": "string",
+          "description": "Type of Communication (i.e. verbal, sign, gestures, augmentative devices, etc.):"
+        },
+        "communication_steps": {
+          "type": "string",
+          "description": "If NO, steps to take to meet resident's needs:"
+        }
+      }
+    },
+    "special_medical_monitoring": {
+      "type": "object",
+      "properties": {
+        "labs": {
+          "type": "object",
+          "properties": {
+            "special_lab_work_required": {
+              "type": "boolean",
+              "description": "SPECIAL LAB WORK REQUIRED (i.e. Lithium levels, Dilantin levels, thyroid, etc.)"
             },
-            "medical_conditions": {
-              "type": "object",
-              "properties": {
-                "condition_name": { "type": "string", "description": "MEDICAL CONDITIONS (Specify):" },
-                "signs_and_symptoms": { "type": "string", "description": "Signs and Symptoms:" },
-                "steps_if_signs_appear": { "type": "string", "description": "Steps to be taken if signs appear:" }
-              }
+            "lab_work_specify": { "type": "string", "description": "Specify:" },
+            "lab_work_frequency": { "type": "string", "description": "Frequency:" }
+          }
+        },
+        "seizure_medication": {
+          "type": "object",
+          "properties": {
+            "seizure_medication": { "type": "boolean" },
+            "seizure_documented": { "type": "boolean" },
+            "seizure_specify": { "type": "string", "description": "If YES, specify:" }
+          }
+        },
+        "blood_pressure_medication": {
+          "type": "object",
+          "properties": {
+            "bp_medication": { "type": "boolean", "description": "BLOOD PRESSURE MEDICATION:" },
+            "bp_parameters": { "type": "boolean", "description": "Parameters established by physician:" },
+            "bp_monitoring": { "type": "string", "description": "What monitoring techniques are used (i.e. frequency, ranges, etc.):" },
+            "bp_procedures": {
+              "type": "string",
+              "description": "If blood pressure is out of established ranges, what procedures should be implemented:"
             }
-          },
-          "description": "HEALTH/MEDICAL"
-        },
-        "nutritional_needs": {
-          "type": "object",
-          "properties": {
-            "food_preparation": { "type": "string", "enum": ["Regular", "Bite-size", "Puree", "Other"] },
-            "food_preparation_other": { "type": "string" },
-            "special_diet": { "type": "boolean" },
-            "special_diet_specify": { "type": "string", "description": "Specify:" },
-            "nutritional_supplements": { "type": "boolean" },
-            "nutritional_supplements_specify": { "type": "string", "description": "Specify:" },
-            "choke_or_gag_reflex": { "type": "boolean" },
-            "mealtime_assistance_required": { "type": "boolean", "description": "Assistance required during mealtimes (i.e. adapted utensils, positioning, etc.):" },
-            "mealtime_assistance_list": { "type": "string", "description": "List:" },
-            "special_fluid_intake_needs": {
-              "type": "object",
-              "properties": {
-                "can_request_fluids": { "type": "boolean", "description": "Can the resident obtain / request fluids?" },
-                "system_if_cannot_request": { "type": "string", "description": "If no, specify system to ensure adequate fluids are provided:" },
-                "nutritional_recommendations": { "type": "string", "description": "Specify medical / nutritional fluid recommendations (if applicable):" }
-              }
-            }
           }
         },
-        "special_medical_monitoring": {
+        "diabetic": {
           "type": "object",
           "properties": {
-            "labs": {
-              "type": "object",
-              "properties": {
-                "special_lab_work_required": { "type": "boolean", "description": "SPECIAL LAB WORK REQUIRED (i.e. Lithium levels, Dilantin levels, thyroid, etc.)" },
-                "lab_work_specify": { "type": "string", "description": "Specify:" },
-                "lab_work_frequency": { "type": "string", "description": "Frequency:" }
-              }
-            },
-            "seizure_medication": {
-              "type": "object",
-              "properties": {
-                "seizure_medication": { "type": "boolean" },
-                "seizure_documented": { "type": "boolean" },
-                "seizure_specify": { "type": "string", "description": "If YES, specify:" }
-              }
-            },
-            "blood_pressure_medication": {
-              "type": "object",
-              "properties": {
-                "bp_medication": { "type": "boolean", "description": "BLOOD PRESSURE MEDICATION:" },
-                "bp_parameters": { "type": "boolean", "description": "Parameters established by physician:" },
-                "bp_monitoring": { "type": "string", "description": "What monitoring techniques are used (i.e. frequency, ranges, etc.):" },
-                "bp_procedures": { "type": "string", "description": "If blood pressure is out of established ranges, what procedures should be implemented:" }
-              }
-            },
-            "diabetic": {
-              "type": "object",
-              "properties": {
-                "diabetic_status": { "type": "boolean", "description": "DIABETIC:" },
-                "diabetic_frequency": { "type": "string", "description": "Frequency of blood sugar levels:" },
-                "diabetic_parameters": { "type": "string", "description": "Parameters established by physician:" }
-              }
-            }
-          }
-        },
-        "adaptive_equipment_facility_adaptations": {
-          "type": "object",
-          "description": "ADAPTIVE EQUIPMENT, PROTECTIVE DEVICES, AND FACILITY ADAPTATIONS",
-          "properties": {
-            "adaptive_equipment": { "type": "boolean", "description": "Adaptive Equipment (i.e. Glasses, hearing aids, wheelchairs, communication devices, etc.):" },
-            "adaptive_equipment_list": { "type": "string", "description": "List:" },
-            "adaptive_equipment_instructions": { "type": "string", "description": "Special Instructions:" },
-            "protective_devices": { "type": "boolean", "description": "Protective Devices:" },
-            "protective_devices_list": { "type": "string", "description": "List:" },
-            "facility_adaptations": { "type": "boolean", "description": "Facility Adaptations (i.e. Ramps, Plexiglas windows, grab bars, etc.):" },
-            "facility_adaptations_list": { "type": "string", "description": "List:" }
-          }
-        },
-        "lifting_carrying_position": {
-          "type": "object",
-          "properties": {
-            "special_instructions_required": { "type": "boolean", "description": "SPECIAL INSTRUCTIONS FOR LIFTING, CARRYING, AND POSITIONING:" },
-            "instructions_specify": { "type": "string", "description": "If YES, specify:" },
-            "equipment": { "type": "string" },
-            "time_schedules": { "type": "string" }
+            "diabetic_status": { "type": "boolean", "description": "DIABETIC:" },
+            "diabetic_frequency": { "type": "string", "description": "Frequency of blood sugar levels:" },
+            "diabetic_parameters": { "type": "string", "description": "Parameters established by physician:" }
           }
         }
       }
