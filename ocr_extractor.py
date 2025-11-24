@@ -67,6 +67,18 @@ def count_filled_fields(json_data):
     return count
 
 
+def count_total_fields(schema):
+    """Recursively count total fields in a JSON schema (object properties)."""
+    if isinstance(schema, dict):
+        if schema.get("type") == "object" and "properties" in schema:
+            return sum(count_total_fields(v) for v in schema["properties"].values())
+        elif schema.get("type") == "array" and "items" in schema:
+            return count_total_fields(schema["items"])
+        else:
+            return 1
+    return 0
+
+
 def deep_merge(base_dict, update_dict):
     """
     Recursively merge update_dict into base_dict.
@@ -347,11 +359,12 @@ def extract_from_pdf(
             
             page_elapsed = time.time() - page_start
             filled_count = count_filled_fields(page_json)
-            
+            total_fields = count_total_fields(schema)
             page_timings.append({
                 'page': idx,
                 'time': page_elapsed,
                 'filled_fields': filled_count,
+                'total_fields': total_fields,
                 'schema': schema_name
             })
             
@@ -382,6 +395,7 @@ def extract_from_pdf(
         # Load schema
         schema = load_schema(schema_path)
         schema_text = json.dumps(schema, indent=2)
+        total_fields = count_total_fields(schema)
         
         # Process each page
         results = []
@@ -411,7 +425,8 @@ def extract_from_pdf(
             page_timings.append({
                 'page': idx,
                 'time': page_elapsed,
-                'filled_fields': filled_count
+                'filled_fields': filled_count,
+                'total_fields': total_fields
             })
             
             logger.info(f"⏱️  Page {idx} processed in {page_elapsed:.2f}s")

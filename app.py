@@ -69,7 +69,14 @@ with st.sidebar:
         schema_file = None
     else:
         # For single schema mode, allow upload
-        schema_file = st.file_uploader("Upload Schema (optional)", type=['json'])
+        schema_file = st.file_uploader("Upload Schema (optional)", type=['json'], key="schema_uploader")
+
+    # Upload expected extraction values JSON
+    expected_values_file = st.file_uploader(
+        "Upload Expected Extraction Values (optional)", 
+        type=['json'], 
+        key="expected_values_uploader"
+    )
     
     # Model selector dropdown
     model_name = st.selectbox(
@@ -112,10 +119,15 @@ if uploaded_pdf:
                 st.stop()
 
 # Main area tabs
-tab1, tab2, tab3 = st.tabs(["📊 Extraction", "✏️ Edit & Approve", "💾 Export"])
+tab1, tab2, tab3, tab4 = st.tabs([
+    "📋 Extraction", 
+    "📊 Statistics", 
+    "✏️ Edit & Approve", 
+    "💾 Export"
+])
 
 with tab1:
-    st.header("Extraction Results")
+    st.header("📋 Extraction Results")
     
     # Show message if no PDF uploaded yet
     if not st.session_state.pdf_uploaded:
@@ -131,7 +143,7 @@ with tab1:
             st.session_state.include_pages = [True] * len(pages)
         
         # Display pages in a grid
-        cols_per_row = 4
+        cols_per_row = 5
         for i in range(0, len(pages), cols_per_row):
             cols = st.columns(cols_per_row)
             for j in range(cols_per_row):
@@ -169,19 +181,19 @@ with tab1:
 
         # Run schema matching if not already done
         if st.session_state.matched_schemas is None:
-            st.info("🔍 Matching each selected page to a schema. Please wait...")
             matched_schemas = []
             for idx, img in enumerate(selected_pages, start=1):
-                img_buffer = BytesIO()
-                img.save(img_buffer, format='PNG')
-                img_bytes = img_buffer.getvalue()
-                schema_name = match_page_to_schema(
-                    LLMHandler(model_name=model_name), img_bytes, schema_files
-                )
-                # fallback to first schema if no match
-                if schema_name == "none" or schema_name == "" or not schema_name:
-                    schema_name = schema_file_names[0] if schema_file_names else ""
-                matched_schemas.append(schema_name)
+                with st.spinner(f"🔍 Matching page {idx}/{len(selected_pages)} to a schema..."):
+                    img_buffer = BytesIO()
+                    img.save(img_buffer, format='PNG')
+                    img_bytes = img_buffer.getvalue()
+                    schema_name = match_page_to_schema(
+                        LLMHandler(model_name=model_name), img_bytes, schema_files
+                    )
+                    # fallback to first schema if no match
+                    if schema_name == "none" or schema_name == "" or not schema_name:
+                        schema_name = schema_file_names[0] if schema_file_names else ""
+                    matched_schemas.append(schema_name)
             st.session_state.matched_schemas = matched_schemas
             st.rerun()
 
@@ -236,11 +248,9 @@ with tab1:
         
         if not selected_page_indices:
             st.warning("No pages selected for extraction.")
-        else:
-            st.info(f"Processing {len(selected_page_indices)} selected pages...")
-            
+        else:            
             # Run extraction with progress
-            with st.spinner("🔄 Processing PDF..."):
+            with st.spinner(f"🔄 Processing {len(selected_page_indices)} selected pages..."):
                 start_time = time.time()
                 
                 try:
@@ -284,26 +294,8 @@ with tab1:
                     st.session_state.extraction_complete = True  # Mark extraction as complete
                     
                     # Display model used and schema mode
-                    schema_mode = results['metadata'].get('schema_mode', 'single')
-                    st.info(f"🤖 Extracted using model: **{results['metadata'].get('model_name', 'Unknown')}** | Schema mode: **{schema_mode}**")
-                    
-                    # Display summary metrics
-                    col1, col2, col3, col4 = st.columns(4)
-                    
-                    with col1:
-                        st.metric("⏱️ Total Time", f"{results['metadata']['total_time_seconds']}s")
-                    
-                    with col2:
-                        st.metric("📄 Pages", results['metadata']['total_pages'])
-                    
-                    with col3:
-                        st.metric("⚡ Avg Time/Page", f"{results['metadata']['average_time_per_page']}s")
-                    
-                    with col4:
-                        st.metric("📝 Filled Fields", results['metadata']['total_filled_fields'])
-                    
-                    st.success("✅ Extraction completed!")
-                    
+                    st.success(f"✅ Extraction completed using: **{results['metadata'].get('model_name', 'Unknown')}** | Schema mode: **{results['metadata'].get('schema_mode', 'single')}**")
+                                        
                 except Exception as e:
                     st.error(f"❌ Extraction failed: {e}")
                     import traceback
@@ -312,39 +304,14 @@ with tab1:
     # Display results if available
     if st.session_state.extraction_results:
         results = st.session_state.extraction_results
-        
-        st.divider()
-        st.subheader("📊 Merged Data Summary")
-        
+                
         # Show merged data info
         merged_count = results['metadata']['total_filled_fields']
-        st.info(f"📝 All {results['metadata']['total_pages']} pages have been merged into a single JSON object with **{merged_count} filled fields**. Earlier pages take precedence - later pages only fill in missing values.")
+        st.info(f"All {results['metadata']['total_pages']} pages have been merged into a single JSON object with **{merged_count} filled fields**. Earlier pages take precedence - later pages only fill in missing values.")
         
         # Show merged JSON
         with st.expander("🔍 View Merged JSON Data", expanded=True):
             st.json(results.get('merged_data', {}))
-        
-        st.divider()
-        st.subheader("📄 Page-by-Page Timing")
-        
-        # Page timing table with schema info if available
-        timing_data = results['page_timings']
-        column_config = {
-            "page": "Page #",
-            "time": st.column_config.NumberColumn("Processing Time (s)", format="%.2f"),
-            "filled_fields": "Filled Fields"
-        }
-        
-        # Add schema column if in split schema mode
-        if timing_data and 'schema' in timing_data[0]:
-            column_config["schema"] = "Schema File"
-        
-        st.dataframe(
-            timing_data,
-            column_config=column_config,
-            hide_index=True,
-            width="stretch"
-        )
         
         st.divider()
         
@@ -356,6 +323,128 @@ with tab1:
                     st.json(page_result['data'])
 
 with tab2:
+    st.header("📊 Extraction Statistics")
+    if st.session_state.extraction_results:
+        results = st.session_state.extraction_results
+        metadata = results.get('metadata', {})
+        st.subheader("Summary Metrics")
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("⏱️ Total Time", f"{metadata.get('total_time_seconds', 'N/A')}s")
+        with col2:
+            st.metric("📄 Pages", metadata.get('total_pages', 'N/A'))
+        with col3:
+            st.metric("⚡ Avg Time/Page", f"{metadata.get('average_time_per_page', 'N/A')}s")
+        with col4:
+            st.metric("📝 Filled Fields", metadata.get('total_filled_fields', 'N/A'))
+
+        st.divider()
+        st.subheader("Extraction Performance Metrics")
+        try:
+            expected_values_file = st.session_state['expected_values_uploader']
+            expected_values = json.load(expected_values_file)
+            expected_values_file.seek(0)
+        except Exception as e:
+            expected_values = None
+
+        def flatten_dict(d, parent_key='', sep='.'):
+            """Recursively flattens a nested dict into dot notation keys."""
+            items = []
+            for k, v in d.items():
+                new_key = f"{parent_key}{sep}{k}" if parent_key else k
+                if isinstance(v, dict):
+                    items.extend(flatten_dict(v, new_key, sep=sep).items())
+                else:
+                    items.append((new_key, v))
+            return dict(items)
+
+        if expected_values:
+            merged_data = results.get('merged_data', {})
+            flat_extracted = flatten_dict(merged_data)
+            flat_expected = flatten_dict(expected_values)
+            all_keys = set(flat_extracted.keys()) | set(flat_expected.keys())
+            comparison_data = []
+            TP = FP = TN = FN = 0
+            for key in all_keys:
+                extracted_val = flat_extracted.get(key, "")
+                expected_val = flat_expected.get(key, "")
+                def norm(val):
+                    if isinstance(val, str):
+                        return val.strip().lower()
+                    return val
+                extracted_filled = bool(str(extracted_val).strip())
+                expected_filled = bool(str(expected_val).strip())
+                if extracted_filled and expected_filled:
+                    if norm(extracted_val) == norm(expected_val):
+                        TP += 1
+                        status = "TP"
+                    else:
+                        FP += 1
+                        status = "FP"
+                elif extracted_filled and not expected_filled:
+                    FP += 1
+                    status = "FP"
+                elif not extracted_filled and expected_filled:
+                    FN += 1
+                    status = "FN"
+                else:
+                    TN += 1
+                    status = "TN"
+                comparison_data.append({
+                    "Field": key,
+                    "Extracted Value": str(extracted_val),
+                    "Expected Value": str(expected_val),
+                    "Status": status
+                })
+            precision = TP / (TP + FP) if (TP + FP) > 0 else 0.0
+            recall = TP / (TP + FN) if (TP + FN) > 0 else 0.0
+            f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
+
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("🎯 Precision", f"{precision:.3f}")
+            with col2:
+                st.metric("🧠 Recall", f"{recall:.3f}")
+            with col3:
+                st.metric("💯 F1 Score", f"{f1:.3f}")
+
+            st.markdown("**Confusion Matrix:**")
+            st.write({
+                "True Positives (TP)": TP,
+                "False Positives (FP)": FP,
+                "True Negatives (TN)": TN,
+                "False Negatives (FN)": FN,
+            })
+
+            with st.expander("🔬 Show All Field Comparisons"):
+                # st.dataframe(comparison_data, width="stretch") TODO
+                import pandas as pd
+                df = pd.DataFrame(comparison_data)
+                st.dataframe(df, width="stretch")
+        else:
+            st.info("Upload a valid Expected Extraction Values JSON to see performance metrics.")
+
+        st.divider()
+        st.subheader("Page-by-Page Timing")
+        timing_data = results.get('page_timings', [])
+        column_config = {
+            "page": "Page #",
+            "time": st.column_config.NumberColumn("Processing Time (s)", format="%.2f"),
+            "filled_fields": "Filled Fields",
+            "total_fields": "Total Fields"
+        }
+        if timing_data and 'schema' in timing_data[0]:
+            column_config["schema"] = "Schema File"
+        st.dataframe(
+            timing_data,
+            column_config=column_config,
+            hide_index=True,
+            width="stretch"
+        )
+    else:
+        st.info("👆 Upload and extract a PDF first to view statistics.")
+
+with tab3:
     st.header("✏️ Edit & Approve Data")
     
     if st.session_state.extraction_results:
@@ -481,7 +570,7 @@ with tab2:
                     # Create header with populated count
                     category_header = f"📁 {category} ({populated_count}/{len(fields)} populated)"
                     
-                    with st.expander(category_header, expanded=True):
+                    with st.expander(category_header, expanded=False):
                         col1, col2 = st.columns(2)
                         for i, field in enumerate(fields):
                             col = col1 if i % 2 == 0 else col2
@@ -531,7 +620,7 @@ with tab2:
     else:
         st.info("👆 Upload and extract a PDF first to edit data.")
 
-with tab3:
+with tab4:
     st.header("💾 Export Data")
     
     if st.session_state.edited_data:
