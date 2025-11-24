@@ -17,27 +17,26 @@ from field_transformer import (
 
 st.set_page_config(page_title="TOT Form Extractor", page_icon="📄", layout="wide")
 
-# Initialize session state
-if 'extraction_results' not in st.session_state:
+def default_session_state():
     st.session_state.extraction_results = None
-if 'edited_data' not in st.session_state:
     st.session_state.edited_data = None
-if 'view_mode' not in st.session_state:
     st.session_state.view_mode = "JSON View"
-if 'data_appended' not in st.session_state:
     st.session_state.data_appended = False
-if 'pdf_uploaded' not in st.session_state:
     st.session_state.pdf_uploaded = False
-if 'pdf_pages' not in st.session_state:
+    st.session_state.pdf_uploaded_name = None
     st.session_state.pdf_pages = None
-if 'page_selection_confirmed' not in st.session_state:
+    st.session_state.include_pages = []
     st.session_state.page_selection_confirmed = False
-if 'extraction_complete' not in st.session_state:
     st.session_state.extraction_complete = False
-if 'schema_matches_confirmed' not in st.session_state:
     st.session_state.schema_matches_confirmed = False
-if 'matched_schemas' not in st.session_state:
     st.session_state.matched_schemas = None
+
+# Initialize session state
+if 'initialized' not in st.session_state:
+    default_session_state()
+    st.session_state.split_schema = False
+    st.session_state.initialized = True
+
 
 st.title("📄 TOT Form Data Extractor")
 st.markdown("Extract structured data from PDF forms using Ollama Vision Models")
@@ -48,25 +47,18 @@ with st.sidebar:
     
     uploaded_pdf = st.file_uploader("Upload PDF Form", type=['pdf'], key="pdf_uploader")
     
-    # Reset button if PDF is uploaded
-    if st.session_state.pdf_uploaded:
-        if st.button("🔄 Upload New PDF", width="stretch"):
-            st.session_state.pdf_uploaded = False
-            st.session_state.pdf_pages = None
-            st.session_state.page_selection_confirmed = False
-            st.session_state.extraction_complete = False
-            st.session_state.extraction_results = None
-            st.session_state.edited_data = None
-            st.rerun()
+    # If the file uploader is cleared (file removed with 'x'), reset session state
+    if not uploaded_pdf and st.session_state.pdf_uploaded:
+        default_session_state()
     
     # Schema mode selector
     use_split_schema = st.checkbox(
         "Use Split Schema (per-page matching)",
-        value=False,
+        key="split_schema",
         help="Enable to match each page to different schema files (schema1.json, schema2.json, etc.)"
     )
     
-    if use_split_schema:
+    if st.session_state.split_schema:
         # For split schema mode, use schema directory
         schema_dir_path = Path(__file__).parent.parent / "schema"
         if schema_dir_path.exists():
@@ -89,31 +81,35 @@ with st.sidebar:
     
     st.info(f"🤖 Using: **{model_name}**")
     
-    extract_button = st.button("🚀 Extract Data", type="primary", width="stretch")
-
 # Handle PDF upload and conversion (OUTSIDE tabs to avoid re-running)
-if uploaded_pdf and not st.session_state.pdf_uploaded:
-    # Save uploaded file temporarily
-    pdf_path = Path("temp_upload.pdf")
-    with open(pdf_path, "wb") as f:
-        f.write(uploaded_pdf.read())
-    
-    # Convert to images for preview
-    with st.spinner("⚙️ Converting PDF pages..."):
-        try:
-            pages = convert_from_path(pdf_path, dpi=150)
-            # Thumbnail the images
-            max_width, max_height = 1024, 1024
-            for img in pages:
-                img.thumbnail((max_width, max_height))
-            
-            st.session_state.pdf_pages = pages
-            st.session_state.pdf_uploaded = True
-            st.session_state.page_selection_confirmed = False
-            st.success(f"✅ Converted {len(pages)} pages.")
-        except Exception as e:
-            st.error(f"Error converting PDF to images: {e}")
-            st.stop()
+if uploaded_pdf:
+    uploadChanged = st.session_state.pdf_uploaded_name != uploaded_pdf.name
+    if (not st.session_state.pdf_uploaded or uploadChanged):
+        # If a different PDF is uploaded, reset state
+        if uploadChanged:
+            default_session_state()
+        # Save uploaded file temporarily
+        pdf_path = Path("temp_upload.pdf")
+        with open(pdf_path, "wb") as f:
+            f.write(uploaded_pdf.read())
+        
+        # Convert to images for preview
+        with st.spinner("⚙️ Converting PDF pages..."):
+            try:
+                pages = convert_from_path(pdf_path, dpi=150)
+                # Thumbnail the images
+                max_width, max_height = 1024, 1024
+                for img in pages:
+                    img.thumbnail((max_width, max_height))
+                
+                st.session_state.pdf_pages = pages
+                st.session_state.pdf_uploaded = True
+                st.session_state.pdf_uploaded_name = uploaded_pdf.name
+                st.session_state.page_selection_confirmed = False
+                st.success(f"✅ Converted {len(pages)} pages.")
+            except Exception as e:
+                st.error(f"Error converting PDF to images: {e}")
+                st.stop()
 
 # Main area tabs
 tab1, tab2, tab3 = st.tabs(["📊 Extraction", "✏️ Edit & Approve", "💾 Export"])
@@ -121,13 +117,18 @@ tab1, tab2, tab3 = st.tabs(["📊 Extraction", "✏️ Edit & Approve", "💾 Ex
 with tab1:
     st.header("Extraction Results")
     
+    # Show message if no PDF uploaded yet
+    if not st.session_state.pdf_uploaded:
+        st.info("👆 Upload and extract a PDF first to view extraction results.")
+    
     # Show page preview and selection if PDF is uploaded but not confirmed
     if st.session_state.pdf_uploaded and not st.session_state.page_selection_confirmed:
         st.subheader("🔍 Preview PDF Pages")
         st.info("Select which pages to include in the extraction")
         
         pages = st.session_state.pdf_pages
-        include_pages = []
+        if len(st.session_state.include_pages) != len(pages):
+            st.session_state.include_pages = [True] * len(pages)
         
         # Display pages in a grid
         cols_per_row = 4
@@ -140,30 +141,22 @@ with tab1:
                         st.image(pages[page_idx], caption=f"Page {page_idx + 1}")
                         include = st.checkbox(
                             f"Include Page {page_idx + 1}", 
-                            value=True, 
+                            value=st.session_state.include_pages[page_idx], 
                             key=f"include_{page_idx + 1}"
                         )
-                        include_pages.append(include)
+                        st.session_state.include_pages[page_idx] = include
         
         # Confirmation buttons
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("✅ Confirm Pages and Extract", width="stretch"):
-                st.session_state.page_selection_confirmed = True
-                st.session_state.selected_pages = include_pages
-                st.rerun()
-        with col2:
-            if st.button("❌ Cancel", width="stretch"):
-                st.session_state.pdf_uploaded = False
-                st.session_state.pdf_pages = None
-                st.session_state.page_selection_confirmed = False
-                st.rerun()
+        if st.button("✅ Confirm Pages and Extract", width="stretch"):
+            st.session_state.page_selection_confirmed = True
+            st.session_state.selected_pages = st.session_state.include_pages.copy()
+            st.rerun()
     
     # Schema matching and confirmation
     if (
         st.session_state.page_selection_confirmed
         and st.session_state.pdf_pages
-        and use_split_schema
+        and st.session_state.split_schema
         and not st.session_state.schema_matches_confirmed
     ):
         pdf_path = Path("temp_upload.pdf")
@@ -231,8 +224,8 @@ with tab1:
         st.session_state.page_selection_confirmed
         and st.session_state.pdf_pages
         and (
-            (not use_split_schema and not st.session_state.extraction_complete)
-            or (use_split_schema and st.session_state.schema_matches_confirmed and not st.session_state.extraction_complete)
+            (not st.session_state.split_schema and not st.session_state.extraction_complete)
+            or (st.session_state.split_schema and st.session_state.schema_matches_confirmed and not st.session_state.extraction_complete)
         )
     ):
         pdf_path = Path("temp_upload.pdf")
@@ -251,7 +244,7 @@ with tab1:
                 start_time = time.time()
                 
                 try:
-                    if use_split_schema:
+                    if st.session_state.split_schema:
                         schema_dir = Path(__file__).parent.parent / "schema"
                         if not schema_dir.exists():
                             st.error(f"❌ Schema directory not found: {schema_dir}")
