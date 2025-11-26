@@ -936,14 +936,6 @@
         "nutritional_recommendations": { "type": "string", "description": "Specify medical / nutritional fluid recommendations (if applicable):" }
       }
     },
-    "special_fluid_intake_needs": {
-      "type": "object",
-      "properties": {
-        "can_request_fluids": { "type": "boolean", "description": "Can the resident obtain / request fluids?" },
-        "system_if_cannot_request": { "type": "string", "description": "If no, specify system to ensure adequate fluids are provided:" },
-        "nutritional_recommendations": { "type": "string", "description": "Specify medical / nutritional fluid recommendations (if applicable):" }
-      }
-    },
     "adaptive_equipment_facility_adaptations": {
       "type": "object",
       "properties": {

@@ -73,11 +73,16 @@ def evaluate_expression(expr, data_context):
         if method_start:
             path = inner_expr[:method_start.start()]
             operations = inner_expr[method_start.start():]
-        else:
-            path = inner_expr
-            operations = ""
-        
         # Get value from data context
+        else:
+            # Also check for array indexing
+            array_match = re.search(r'\[(-?\d+)\]', inner_expr)
+            if array_match:
+                path = inner_expr[:array_match.start()]
+                operations = inner_expr[array_match.start():]
+            else:
+                path = inner_expr
+                operations = ""
         value = data_context.get(path, "")
         if value is None or value == "":
             return ""
