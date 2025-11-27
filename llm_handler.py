@@ -3,24 +3,48 @@ import json
 import base64
 import re
 import logging
+import requests
 from io import BytesIO
 from dotenv import load_dotenv
 from json_repair import repair_json
-import ollama
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Conditionally import ollama only if needed
+ollama = None
+
 
 class LLMHandler:
     def __init__(self, model_name=None):
-        """Initialize the LLM handler to use Ollama.
+        """Initialize the LLM handler to use Ollama or remote server.
         
         Args:
             model_name: Optional model name to override .env configuration
         """
         load_dotenv()
 
+        # Check if using remote server (Colab)
+        self.use_remote = os.getenv("USE_REMOTE_SERVER", "false").lower() == "true"
+        self.remote_url = os.getenv("REMOTE_SERVER_URL", "").strip()
+        
+        if self.use_remote:
+            if not self.remote_url:
+                raise RuntimeError("USE_REMOTE_SERVER is true but REMOTE_SERVER_URL is not set")
+            logger.info(f"✅ Using remote server at: {self.remote_url}")
+            self.base_url = None
+            self.model_name = "remote-qwen2.5-vl"
+            self.model = None
+            return
+
+        # Local Ollama setup - import ollama only when needed
+        global ollama
+        if ollama is None:
+            try:
+                import ollama
+            except ImportError:
+                raise RuntimeError("ollama package is not installed. Install it with: pip install ollama")
+        
         self.base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
         # Use provided model_name or fall back to .env or default
         self.model_name = model_name or os.getenv("OLLAMA_MODEL", "qwen2.5vl")
@@ -139,7 +163,11 @@ class LLMHandler:
         return {"raw_text": text_str[:5000]}
 
     def generate_json(self, schema_text, page_prompt, image_bytes):
-        """Generate JSON response using Ollama with vision capabilities."""
+        """Generate JSON response using Ollama or remote server with vision capabilities."""
+        # Route to remote server if configured
+        if self.use_remote:
+            return self._generate_json_remote(schema_text, page_prompt, image_bytes)
+        
         try:
             # Encode image to base64 (Ollama expects base64 for images)
             image_base64 = base64.b64encode(image_bytes).decode('utf-8')
@@ -192,3 +220,76 @@ CRITICAL: Return ONLY valid JSON with the extracted data."""
         except Exception as e:
             logger.exception(f"Generation failed: {e}")
             raise RuntimeError(f"Ollama generation failed: {e}")
+    
+    def _generate_json_remote(self, schema_text, page_prompt, image_bytes):
+        """Generate JSON response using remote Colab server."""
+        try:
+            # Build the full prompt like the local version
+            full_prompt = f"""You are an expert OCR system. Extract ALL text from this form image.
+
+Schema structure:
+{schema_text[:2000]}
+
+EXTRACTION RULES:
+1. Read ALL handwritten and printed text on this page
+2. Extract COMPLETE values
+3. Extract COMPLETE addresses
+4. Extract COMPLETE phone numbers
+5. Extract COMPLETE dates
+6. For checkboxes: only include checked items in arrays
+7. If a field is blank/empty, omit it entirely from the JSON
+8. Match extracted text to the schema field names
+
+{page_prompt}
+
+CRITICAL: Return ONLY valid JSON with the extracted data."""
+
+            logger.info(f"🔄 Sending request to remote server: {self.remote_url}")
+            
+            # Prepare multipart form data
+            # Note: prompt must come BEFORE file in the form data to match server parameter order
+            files = {
+                'file': ('image.png', image_bytes, 'image/png')
+            }
+            params = {
+                'prompt': full_prompt
+            }
+            
+            # Send POST request to /analyze endpoint
+            # Using params for prompt (as query parameter) since it's defined before file in server
+            response = requests.post(
+                f"{self.remote_url}/analyze",
+                params=params,
+                files=files,
+                timeout=120  # 2 minute timeout for model inference
+            )
+            
+            response.raise_for_status()
+            result = response.json()
+            
+            logger.info(f"📥 Received response from remote server")
+            
+            # The Colab server returns {"description": "..."}
+            # Extract the description and parse it as JSON
+            if 'description' in result:
+                description = result['description']
+                logger.info(f"📥 Description length: {len(description)} characters")
+                return self._extract_json_from_response(description)
+            elif 'error' in result:
+                raise RuntimeError(f"Remote server error: {result['error']}")
+            else:
+                logger.warning(f"Unexpected response format: {result}")
+                return self._extract_json_from_response(str(result))
+                
+        except requests.exceptions.Timeout:
+            logger.exception("Remote server request timed out")
+            raise RuntimeError("Remote server request timed out after 120 seconds")
+        except requests.exceptions.ConnectionError:
+            logger.exception("Failed to connect to remote server")
+            raise RuntimeError(f"Could not connect to remote server at {self.remote_url}")
+        except requests.exceptions.RequestException as e:
+            logger.exception(f"Remote server request failed: {e}")
+            raise RuntimeError(f"Remote server request failed: {e}")
+        except Exception as e:
+            logger.exception(f"Remote generation failed: {e}")
+            raise RuntimeError(f"Remote generation failed: {e}")
