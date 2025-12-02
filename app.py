@@ -89,7 +89,7 @@ with st.sidebar:
     # Model selector dropdown
     model_name = st.selectbox(
         "Select Ollama Model",
-        options=["qwen2.5vl:3b","minicpm-v:8b", "gemma3:4b", "llama3.2-vision:11b", "qwen3-vl:2b", "qwen3-vl:4b", "qwen3-vl:4b-instruct-q8_0", "bakllava:7b"],
+        options=["qwen2.5vl:3b","minicpm-v:8b", "gemma3:4b", "llama3.2-vision:11b", "qwen3-vl:2b", "qwen3-vl:4b", "qwen3-vl:4b-instruct-q8_0", "qwen3-vl:4b-instruct-q4_K_M", "bakllava:7b"],
         index=0,
         help="Choose the vision model to use for extraction"
     )
