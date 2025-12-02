@@ -6,7 +6,7 @@ import csv
 from pathlib import Path
 from pdf2image import convert_from_path
 from llm_handler import LLMHandler
-from ocr_extractor import count_total_fields, extract_from_pdf, count_filled_fields, get_all_schema, match_page_to_schema, merge_page_extractions, merge_page_results, extract_page_json_text, load_schema
+from ocr_extractor import count_total_fields, extract_from_pdf, count_filled_fields, extract_json_text, extract_text, get_all_schema, match_page_to_schema, merge_page_extractions, merge_page_results, load_schema
 
 from field_transformer import (
     apply_mapping,
@@ -18,7 +18,8 @@ from field_transformer import (
 st.set_page_config(page_title="TOT Form Extractor", page_icon="📄", layout="wide")
 
 def default_session_state():
-    st.session_state.extraction_results = None
+    st.session_state.OCR_results = None
+    st.session_state.JSON_results = None
     st.session_state.edited_data = None
     st.session_state.view_mode = "JSON View"
     st.session_state.data_appended = False
@@ -103,9 +104,8 @@ with st.sidebar:
     )
     
 # Create and cache LLMHandler instance in session state
-if 'llm_handler' not in st.session_state or st.session_state.get('llm_handler_model_name') != model_name:
+if 'llm_handler' not in st.session_state or st.session_state.get('llm_handler').model_name != model_name:
     st.session_state.llm_handler = LLMHandler(model_name=model_name)
-    st.session_state.llm_handler_model_name = model_name
 
 # Handle PDF upload and conversion (OUTSIDE tabs to avoid re-running)
 if uploaded_pdf:
@@ -198,19 +198,29 @@ with tab1:
         schema_files = list(get_all_schema(str(schema_dir)))
         schema_file_names = [f.name for f in schema_files]
 
+        # OCR extraction for all selected pages
+        if st.session_state.OCR_results is None or not isinstance(st.session_state.OCR_results, dict):
+            st.session_state.OCR_results = {}
+        for idx, img in enumerate(selected_pages, start=1):
+            if idx not in st.session_state.OCR_results:
+                with st.spinner(f"🔎 Running OCR for page {idx}/{len(selected_pages)}..."):
+                    img_buffer = BytesIO()
+                    img.save(img_buffer, format='PNG')
+                    img_bytes = img_buffer.getvalue()
+                    text = extract_text(st.session_state.llm_handler, img_bytes, idx)
+                    st.session_state.OCR_results[idx] = text
+
         # Run schema matching if not already done
         if st.session_state.matched_schemas is None:
             matched_schemas = []
             if st.session_state.get('model_schema_match', False):
                 for idx, img in enumerate(selected_pages, start=1):
                     with st.spinner(f"🔍 Matching page {idx}/{len(selected_pages)} to a schema..."):
-                        img_buffer = BytesIO()
-                        img.save(img_buffer, format='PNG')
-                        img_bytes = img_buffer.getvalue()
+                        page_text = st.session_state.OCR_results.get(idx, "")
                         schema_name = match_page_to_schema(
-                            st.session_state.llm_handler, img_bytes, schema_files
+                            st.session_state.llm_handler, page_text, schema_files
                         )
-                        # fallback to first schema if no match
+                        # Fallback to first schema if no match
                         if not schema_name or schema_name == "none":
                             schema_name = schema_file_names[0] if schema_file_names else ""
                         matched_schemas.append(schema_name)
@@ -286,9 +296,8 @@ with tab1:
                             st.stop()
                         # Use user-confirmed schema assignments
                         matched_schema_names = st.session_state.matched_schemas
-                        # Use extract_page_json_text if split_OCR is True
                         if st.session_state.split_OCR:
-                            # Manual per-page extraction using extract_page_json_text
+                            # Manual per-page extraction
                             pages = st.session_state.pdf_pages
                             selected_pages = [pages[i] for i in selected_page_indices]
                             schema_files = list(get_all_schema(str(schema_dir)))
@@ -307,8 +316,17 @@ with tab1:
                                     continue
                                 with open(schema_path_matched, "r", encoding="utf-8") as f:
                                     schema = json.load(f)
-                                # Use two-step extraction
-                                page_json = extract_page_json_text(st.session_state.llm_handler, schema, img_bytes, idx)
+                                # Use two-step extraction: extract_text + extract_json_text
+                                text = extract_text(st.session_state.llm_handler, img_bytes, idx)
+                                if st.session_state.OCR_results is None:
+                                    st.session_state.OCR_results = {}
+                                st.session_state.OCR_results[idx] = text
+                                json_str = extract_json_text(st.session_state.llm_handler, schema, text, idx)
+                                try:
+                                    page_json = json.loads(json_str)
+                                except Exception as e:
+                                    st.error(f"Failed to parse JSON for page {idx}: {e}")
+                                    continue
                                 page_elapsed = time.time() - page_start
                                 filled_count = count_filled_fields(page_json)
                                 total_fields = count_total_fields(schema)
@@ -350,10 +368,10 @@ with tab1:
                         else:
                             # Use standard extract_from_pdf
                             results, timings = extract_from_pdf(
+                                st.session_state.llm_handler,
                                 str(pdf_path),
                                 schema_path=None,
                                 output_path=None,
-                                model_name=model_name,
                                 use_split_schema=True,
                                 schema_dir=str(schema_dir),
                                 selected_page_indices=selected_page_indices,
@@ -366,7 +384,6 @@ with tab1:
                             schema_path = "temp_schema.json"
                             with open(schema_path, "w") as f:
                                 f.write(schema_file.read().decode())
-                        # Use extract_page_json_text if split_OCR is True
                         if st.session_state.split_OCR:
                             pages = st.session_state.pdf_pages
                             selected_pages = [pages[i] for i in selected_page_indices]
@@ -379,7 +396,17 @@ with tab1:
                                 img_buffer = BytesIO()
                                 img.save(img_buffer, format='PNG')
                                 img_bytes = img_buffer.getvalue()
-                                page_json = extract_page_json_text(st.session_state.llm_handler, schema, img_bytes, idx)
+                                # Use two-step extraction: extract_text + extract_json_text
+                                text = extract_text(st.session_state.llm_handler, img_bytes, idx)
+                                if st.session_state.OCR_results is None:
+                                    st.session_state.OCR_results = {}
+                                st.session_state.OCR_results[idx] = text
+                                json_str = extract_json_text(st.session_state.llm_handler, schema, text, idx)
+                                try:
+                                    page_json = json.loads(json_str)
+                                except Exception as e:
+                                    st.error(f"Failed to parse JSON for page {idx}: {e}")
+                                    continue
                                 page_elapsed = time.time() - page_start
                                 filled_count = count_filled_fields(page_json)
                                 total_fields = count_total_fields(schema)
@@ -418,14 +445,14 @@ with tab1:
                             timings = page_timings
                         else:
                             results, timings = extract_from_pdf(
+                                st.session_state.llm_handler,
                                 str(pdf_path), 
                                 schema_path, 
                                 output_path=None,
-                                model_name=model_name,
                                 use_split_schema=False,
                                 selected_page_indices=selected_page_indices
                             )
-                    st.session_state.extraction_results = results
+                    st.session_state.JSON_results = results
                     st.session_state.edited_data = None  # Reset edited data
                     st.session_state.data_appended = False  # Reset append flag for new document
                     st.session_state.extraction_complete = True  # Mark extraction as complete
@@ -436,10 +463,10 @@ with tab1:
                     st.error(f"❌ Extraction failed: {e}")
                     import traceback
                     st.code(traceback.format_exc())
-    
+        
     # Display results if available
-    if st.session_state.extraction_results:
-        results = st.session_state.extraction_results
+    if st.session_state.JSON_results:
+        results = st.session_state.JSON_results
                 
         # Show merged data info
         merged_count = results['metadata']['total_filled_fields']
@@ -450,6 +477,16 @@ with tab1:
             st.json(results.get('merged_data', {}))
         
         st.divider()
+
+        # Individual page results (for debugging)
+        with st.expander("🔧 Debug: Individual Page OCR Results"):
+            ocr_results = st.session_state.get('OCR_results', {})
+            if ocr_results and isinstance(ocr_results, dict):
+                for page_num in sorted(ocr_results.keys()):
+                    with st.expander(f"📄 Page {page_num} OCR Text"):
+                        st.text(ocr_results[page_num])
+            else:
+                st.info("No OCR results available.")
         
         # Individual page results (for debugging)
         with st.expander("🔧 Debug: Individual Page Results"):
@@ -460,8 +497,8 @@ with tab1:
 
 with tab2:
     st.header("📊 Extraction Statistics")
-    if st.session_state.extraction_results:
-        results = st.session_state.extraction_results
+    if st.session_state.JSON_results:
+        results = st.session_state.JSON_results
         metadata = results.get('metadata', {})
         st.subheader("Summary Metrics")
         col1, col2, col3, col4 = st.columns(4)
@@ -585,7 +622,7 @@ with tab2:
 with tab3:
     st.header("✏️ Edit & Approve Data")
     
-    if st.session_state.extraction_results:
+    if st.session_state.JSON_results:
         # View mode selector
         view_mode = st.radio(
             "View Mode:",
@@ -598,7 +635,7 @@ with tab3:
             st.subheader("Merged JSON Data")
             st.info("This is the final merged data from all pages. Later pages have overridden earlier pages where duplicates existed.")
             
-            merged_data = st.session_state.extraction_results.get('merged_data', {})
+            merged_data = st.session_state.JSON_results.get('merged_data', {})
             st.json(merged_data)
         
         else:  # Key-Value Editor
@@ -606,7 +643,7 @@ with tab3:
             st.info("Fields are automatically mapped using field_mapping_config.json. Edit values below and approve to export.")
             
             # Get merged data from extraction
-            merged_data = st.session_state.extraction_results.get('merged_data', {})
+            merged_data = st.session_state.JSON_results.get('merged_data', {})
             
             # Apply mapping transformation (only once)
             if st.session_state.edited_data is None:
@@ -854,8 +891,8 @@ with tab4:
         with col2:
             # JSON Download (full data)
             json_output = {
-                "metadata": st.session_state.extraction_results['metadata'],
-                "merged_data": st.session_state.extraction_results.get('merged_data', {}),
+                "metadata": st.session_state.JSON_results['metadata'],
+                "merged_data": st.session_state.JSON_results.get('merged_data', {}),
                 "mapped_csv_data": st.session_state.edited_data
             }
             
@@ -878,7 +915,7 @@ with tab4:
                 mime="application/json",
                 width="stretch"
             )
-    elif st.session_state.extraction_results:
+    elif st.session_state.JSON_results:
         st.info("👈 Go to 'Edit & Approve' tab to review and approve the data first.")
     else:
         st.info("👆 Upload and extract a PDF first to export data.")
