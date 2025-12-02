@@ -1,13 +1,10 @@
-import os
 import json
 import argparse
 import logging
 import base64
-import tempfile
 from pathlib import Path
 from pdf2image import convert_from_path
 from io import BytesIO
-from llm_handler import LLMHandler
 import time
 
 logging.basicConfig(level=logging.INFO)
@@ -31,14 +28,39 @@ Your job:
 Return strictly valid JSON. Do not include comments, trailing commas, or extra text.
 """
 
+OCR_SYSTEM_INSTRUCTIONS = """
+Extract all printed and written text
+"""
+
+JSON_SYSTEM_INSTRUCTIONS = """
+{schema_text}
+
+You receive a form that contains prompts and answers.
+Your job:
+1. Extract user-entered responses.
+2. Match each extracted response exactly to the JSON schema provided.
+3. If a field is blank, illegible, or missing, return null.
+4. Do NOT guess or copy printed text.
+5. Return only valid JSON that fits the schema structure exactly.
+6. For checkboxes, return the marked options.
+7. Normalize dates to YYYY-MM-DD and phone numbers to E.164 if possible.
+
+Form:
+{form_text}
+
+Return strictly valid JSON. Do not include comments, trailing commas, or extra text.
+"""
+
 SCHEMA_MATCH_PROMPT = """
+{schema_text}
+
 Does this image of a form page match this schema?
 1. Prioritize exact matches of any 'enum' fields, then descriptions (quoted from form until ; following is property information), then property names.
 2. A correlation of 70% or higher indicates a match.
 Reply only 'yes' or 'no'.
 
-Schema:
-{schema_text}
+Form:
+{form_text}
 """
 
 
@@ -177,47 +199,28 @@ def get_all_schema(schema_dir):
     return schema_files
 
 
-def match_page_to_schema(llm, page_image, schema_files):
+def match_page_to_schema(llm, page_text, schema_files):
     """
-    Match a page image to the most appropriate schema file.
+    Match a page's OCR text to the most appropriate schema file.
     Returns schema filename or 'none' if no match.
     """
-    image_b64 = base64.b64encode(page_image).decode('utf-8')
-    
     for schema_file in schema_files:
         with open(schema_file, "r", encoding="utf-8") as f:
             schema = json.load(f)
         schema_text = json.dumps(schema, indent=2, ensure_ascii=False)
-        prompt = SCHEMA_MATCH_PROMPT.format(schema_text=schema_text)
+        prompt = SCHEMA_MATCH_PROMPT.format(schema_text=schema_text, form_text=page_text)
         
-        for attempt in range(3):
-            try:
-                response = llm.model.generate(
-                    model=llm.model_name,
-                    prompt=prompt,
-                    images=[image_b64],
-                    stream=False,
-                    options={
-                        "temperature": 0,
-                        "top_p": 1,
-                        "num_ctx": 10000,
-                        "num_predict": 16,
-                    }
-                )
-                answer = response.get('response', '').strip().lower()
-                
-                if "yes" in answer.lower():
-                    logger.info(f"✅ Matched to schema: {schema_file.name}")
-                    return schema_file.name
-                elif "no" in answer.lower():
-                    break
-            except Exception as e:
-                logger.warning(f"Schema match error for {schema_file.name}: {e}")
-                if attempt < 2:
-                    time.sleep(2 ** attempt)
-                else:
-                    break
-    
+        try:
+            # Call LLM to check for match
+            answer = llm.call(
+                prompt,
+                num_predict=16
+            ).strip().lower()
+            if "yes" in answer.lower():
+                logger.info(f"✅ Matched to schema: {schema_file.name}")
+                return schema_file.name
+        except Exception as e:
+            logger.warning(f"Schema match error for {schema_file.name}: {e}")
     return "none"
 
 
@@ -247,35 +250,77 @@ Return valid JSON according to the provided schema.
                 raise
 
 
+def extract_text(llm, page_image, page_num):
+    """
+    Extract all text (printed and handwritten) from a page image using OCR_SYSTEM_INSTRUCTIONS.
+    """
+    logger.info(f"Extracting text from page {page_num}...")
+    prompt = OCR_SYSTEM_INSTRUCTIONS
+    for attempt in range(3):
+        try:
+            # Call the model to extract text
+            return llm.call(prompt, page_image=page_image)
+        except Exception as e:
+            logger.error(f"OCR extraction error on page {page_num}: {e}")
+            if attempt < 2:
+                delay = 2 ** attempt
+                logger.warning(f"Retrying OCR in {delay}s...")
+                time.sleep(delay)
+            else:
+                logger.error(f"Skipping OCR for page {page_num} after repeated errors.")
+                raise
+
+
+def extract_json_text(llm, schema, form_text, page_num):
+    """
+    Extract JSON data from text using JSON_SYSTEM_INSTRUCTIONS and the schema.
+    """
+    logger.info(f"Extracting JSON from text for page {page_num}...")
+    schema_text = json.dumps(schema, indent=2, ensure_ascii=False)
+    prompt = JSON_SYSTEM_INSTRUCTIONS.format(schema_text=schema_text, form_text=form_text)
+    for attempt in range(3):
+        try:
+            # Call the model to extract JSON
+            return llm.call(prompt)
+        except Exception as e:
+            logger.error(f"JSON extraction error on page {page_num}: {e}")
+            if attempt < 2:
+                delay = 2 ** attempt
+                logger.warning(f"Retrying JSON extraction in {delay}s...")
+                time.sleep(delay)
+            else:
+                logger.error(f"Skipping JSON extraction for page {page_num} after repeated errors.")
+                raise
+
+
 def extract_from_pdf(
+    llm,
     pdf_path,
     schema_path,
     output_path=None,
-    model_name=None,
     use_split_schema=False,
     schema_dir=None,
     selected_page_indices=None,
-    matched_schema_names=None 
+    matched_schema_names=None,
+    use_two_step_extraction=False
 ):
     """
     Extract structured JSON from a PDF using Ollama vision model.
     
     Args:
+        llm: LLM handler instance
         pdf_path: Path to the PDF file
         schema_path: Path to the JSON schema file (used if use_split_schema=False)
         output_path: Optional path to save results
-        model_name: Optional model name to use (overrides .env)
         use_split_schema: If True, use per-page schema matching
         schema_dir: Directory containing schema1.json, schema2.json, etc. (required if use_split_schema=True)
         selected_page_indices: Optional list of page indices (0-based) to process. If None, process all pages.
         matched_schema_names: Optional list of schema file names (for split schema mode, overrides auto-matching)
+        use_two_step_extraction: If True, use OCR->Text->JSON extraction per page.
     
     Returns: (results_dict, timing_info)
     """
     start_time = time.time()
-    
-    # Initialize LLM handler with specified model
-    llm = LLMHandler(model_name=model_name)
     
     # Convert PDF to images
     logger.info(f"📄 Converting PDF: {pdf_path}")
@@ -321,7 +366,14 @@ def extract_from_pdf(
                 img_buffer = BytesIO()
                 img.save(img_buffer, format='PNG')
                 img_bytes = img_buffer.getvalue()
-                schema_name = match_page_to_schema(llm, img_bytes, schema_files)
+                # Step 1: OCR to get page text
+                try:
+                    page_text = extract_text(llm, img_bytes, idx)
+                except Exception as e:
+                    logger.warning(f"⚠️ OCR failed for page {idx}: {e}. Skipping.")
+                    continue
+                # Step 2: Match schema using OCR text
+                schema_name = match_page_to_schema(llm, page_text, schema_files)
                 if schema_name == "none" or not schema_name:
                     logger.warning(f"⚠️ Page {idx} does not match any schema. Skipping.")
                     continue
@@ -354,8 +406,18 @@ def extract_from_pdf(
                 schema=json.dumps(schema, indent=2, ensure_ascii=False)
             )
             
-            # Extract JSON
-            page_json = extract_page_json(llm, img_bytes, idx, schema_text)
+            if use_two_step_extraction:
+                # Two-step: OCR then JSON extraction
+                text = extract_text(llm, img_bytes, idx)
+                json_str = extract_json_text(llm, schema, text, idx)
+                try:
+                    page_json = json.loads(json_str)
+                except Exception as e:
+                    logger.error(f"Failed to parse JSON for page {idx}: {e}")
+                    raise
+            else:
+                # One-step: direct image-to-JSON
+                page_json = extract_page_json(llm, img_bytes, idx, schema_text)
             
             page_elapsed = time.time() - page_start
             filled_count = count_filled_fields(page_json)
@@ -416,12 +478,20 @@ def extract_from_pdf(
             # Prepare page-specific prompt
             page_prompt = f"This is page {idx} of {len(images)}."
             
-            # Generate JSON
-            page_json = llm.generate_json(schema_text, page_prompt, img_bytes)
+            if use_two_step_extraction:
+                # Two-step: OCR then JSON extraction
+                text = extract_text(llm, img_bytes, idx)
+                json_str = extract_json_text(llm, schema, text, idx)
+                try:
+                    page_json = json.loads(json_str)
+                except Exception as e:
+                    logger.error(f"Failed to parse JSON for page {idx}: {e}")
+                    raise
+            else:
+                page_json = llm.generate_json(schema_text, page_prompt, img_bytes)
             
             page_elapsed = time.time() - page_start
             filled_count = count_filled_fields(page_json)
-            
             page_timings.append({
                 'page': idx,
                 'time': page_elapsed,
@@ -452,7 +522,7 @@ def extract_from_pdf(
     output_data = {
         'metadata': {
             'pdf_path': str(pdf_path),
-            'model_name': llm.model_name,
+            'model_name': getattr(llm, "model_name", None),
             'total_pages': len(images),
             'total_time_seconds': round(total_time, 2),
             'average_time_per_page': round(total_time / len(images), 2),
@@ -482,18 +552,3 @@ def extract_from_pdf(
     logger.info(f"{'='*60}\n")
     
     return output_data, page_timings
-
-
-def main():
-    parser = argparse.ArgumentParser(description="Extract structured data from TOT forms")
-    parser.add_argument('--pdf', required=True, help='Path to PDF file')
-    parser.add_argument('--schema', required=True, help='Path to JSON schema')
-    parser.add_argument('--out', default='output_ollama.json', help='Output JSON path')
-    
-    args = parser.parse_args()
-    
-    extract_from_pdf(args.pdf, args.schema, args.out)
-
-
-if __name__ == "__main__":
-    main()

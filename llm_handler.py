@@ -3,7 +3,6 @@ import json
 import base64
 import re
 import logging
-from io import BytesIO
 from dotenv import load_dotenv
 from json_repair import repair_json
 import ollama
@@ -180,7 +179,7 @@ CRITICAL: Return ONLY valid JSON with the extracted data."""
                     'temperature': 0.2,  # Slightly higher for better text generation
                     'num_predict': 15000,  # Increased max tokens for complete extraction
                 }
-            )
+            )   
             
             text_output = response['message']['content']
             
@@ -192,3 +191,31 @@ CRITICAL: Return ONLY valid JSON with the extracted data."""
         except Exception as e:
             logger.exception(f"Generation failed: {e}")
             raise RuntimeError(f"Ollama generation failed: {e}")
+
+    def call(self, prompt, page_image=None, temp=0, top_p=1, num_ctx=10000, num_predict=2048):
+        """
+        Unified LLM call for text or image+text prompts.
+        Returns the raw response string.
+        """
+        if page_image is not None:
+            images = [base64.b64encode(page_image).decode('utf-8')]
+        else:
+            images = []
+        response = self.model.generate(
+            model=self.model_name,
+            prompt=prompt,
+            images=images,
+            stream=False,
+            options={
+                "temperature": temp,
+                "top_p": top_p,
+                "num_ctx": num_ctx,
+                "num_predict": num_predict,
+            }
+        )
+        if response:
+            if 'response' in response:
+                return response['response']
+            elif 'message' in response and isinstance(response['message'], dict) and 'content' in response['message']:
+                return response['message']['content']
+        return response
